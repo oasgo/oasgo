@@ -3,47 +3,63 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"text/template"
 )
 
-var abbrs = []string{"id", "href", "url"}
+//** Render context **
 
-func (s *Schema) renderAsObject() string {
-	buf := bytes.NewBuffer([]byte{})
-	tmpl, err := template.New("struct.tmpl").Funcs(getFuncMap()).ParseFiles("templates/struct.tmpl")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	err = tmpl.Execute(os.Stdout, s)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(2)
-	}
-	return buf.String()
+type RenderContext struct {
+	templates       map[string]string
+	predefinedTypes map[string]string
+	abbrs           []string
 }
 
-func (s *Schema) renderAsArray() string {
-	buf := bytes.NewBuffer([]byte{})
-	tmpl, err := template.New("array.tmpl").Funcs(getFuncMap()).ParseFiles("templates/array.tmpl")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+func (c *RenderContext) array() (out []string) {
+	out = make([]string, 0)
+	for _, v := range c.templates {
+		out = append(out, v)
 	}
-	err = tmpl.Execute(buf, s)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(2)
+	return
+}
+
+func (c *RenderContext) find(key string) (name, path string, err error) {
+
+	path, ok := c.templates[key]
+	if !ok {
+		err = errors.New("invalid type")
+		return
 	}
 
-	return buf.String()
+	i := strings.LastIndex(path, "/")
+	if i < 0 {
+		name = path
+	} else {
+		name = path[i+1:]
+	}
+
+	return
+}
+
+var renderContext = &RenderContext{
+	templates: map[string]string{
+		"package":   "templates/package.tmpl",
+		"signature": "templates/signature.tmpl",
+		"object":    "templates/struct.tmpl",
+		"array":     "templates/array.tmpl",
+	},
+	predefinedTypes: map[string]string{
+		"string":  "string",
+		"integer": "int",
+	},
+	abbrs: []string{"id", "href", "url"},
 }
 
 func (s *Schema) RenderType() string {
-	simpleType, ok := predefinedTypes[s.Type]
+	simpleType, ok := renderContext.predefinedTypes[s.Type]
 	if ok {
 		return simpleType
 	}
@@ -64,6 +80,44 @@ func (s *Schema) RenderType() string {
 		panic("invalid type")
 	}
 }
+
+//** Render Schema **
+
+// RenderDefinition renders Schema as struct definition.
+func (s *Schema) RenderDefinition() string {
+	simpleType, ok := renderContext.predefinedTypes[s.Type]
+	if ok {
+		return simpleType
+	}
+
+	name, filepath, err := renderContext.find(s.Type)
+	if err != nil {
+		panic(err)
+	}
+
+	return s.render(name, filepath)
+}
+
+func (s *Schema) render(name, filename string) string {
+
+	buf := bytes.NewBuffer([]byte{})
+
+	tmpl, err := template.New(name).Funcs(getFuncMap()).ParseFiles(filename)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	err = tmpl.Execute(buf, s)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(2)
+	}
+
+	return buf.String()
+}
+
+//** Render Parameter **
 
 func (p *Parameter) RenderAsValue() string {
 	if !p.Required {
@@ -88,21 +142,7 @@ func (p *Parameter) RenderAsString() string {
 	return p.RenderAsValue()
 }
 
-// RenderDefinition renders Schema as struct definition.
-func (s *Schema) RenderDefinition() string {
-	simpleType, ok := predefinedTypes[s.Type]
-	if ok {
-		return simpleType
-	}
-	switch s.Type {
-	case "object":
-		return s.renderAsObject()
-	case "array":
-		return s.renderAsArray()
-	default:
-		panic("invalid type")
-	}
-}
+//** Render Swagger **
 
 func (s *Swagger) String() string {
 	b, _ := json.MarshalIndent(s, "", "  ")
@@ -111,7 +151,7 @@ func (s *Swagger) String() string {
 }
 
 func render(s *Swagger) {
-	tmpl, err := template.New("package.tmpl").Funcs(getFuncMap()).ParseFiles(templates...)
+	tmpl, err := template.New("package.tmpl").Funcs(getFuncMap()).ParseFiles(renderContext.array()...)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -123,6 +163,8 @@ func render(s *Swagger) {
 	}
 }
 
+//** Utils **
+
 func convertToGoName(name string, varname bool) string {
 	split := func(r rune) bool {
 		return r == ' ' || r == '_' || r == '-'
@@ -131,7 +173,7 @@ func convertToGoName(name string, varname bool) string {
 	names := []string{}
 
 	for i, name := range strings.FieldsFunc(name, split) {
-		if contains(abbrs, name) {
+		if contains(renderContext.abbrs, name) {
 			names = append(names, strings.ToUpper(name))
 		} else if i == 0 && varname {
 			names = append(names, name)
