@@ -11,18 +11,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var templates = []string{
-	"templates/package.tmpl",
-	"templates/signature.tmpl",
-	"templates/struct.tmpl",
-	"templates/array.tmpl",
-}
-
-var predefinedTypes = map[string]string{
-	"string":  "string",
-	"integer": "int",
-}
-
 // Swagger https://swagger.io/specification/
 type Swagger struct {
 	Info       Info

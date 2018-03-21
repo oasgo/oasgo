@@ -26,7 +26,7 @@ var genCmd = &cobra.Command{
 }
 
 func main() {
-	var rootCmd = &cobra.Command{Use: "fen"}
+	var rootCmd = &cobra.Command{}
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
 	rootCmd.Execute()

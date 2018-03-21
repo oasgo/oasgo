@@ -11,6 +11,7 @@ package client
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -82,8 +83,19 @@ func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int, fancy_q
 	}
 	defer resp.Body.Close()
 
+	if r, ok := res.(*string); ok {
+		body, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return resp, err
+		}
+
+		*r = string(body)
+		return resp, nil
+	}
+
 	if err = json.NewDecoder(resp.Body).Decode(res); err != nil {
-		return nil, err
+		return resp, err
 	}
 
 	return resp, nil
@@ -105,8 +117,19 @@ func (c HTTPSwaggerPetstoreClient) CreatePet(res interface{}) (*http.Response, e
 	}
 	defer resp.Body.Close()
 
+	if r, ok := res.(*string); ok {
+		body, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return resp, err
+		}
+
+		*r = string(body)
+		return resp, nil
+	}
+
 	if err = json.NewDecoder(resp.Body).Decode(res); err != nil {
-		return nil, err
+		return resp, err
 	}
 
 	return resp, nil
@@ -135,8 +158,19 @@ func (c HTTPSwaggerPetstoreClient) ShowPetById(res interface{}, petId string) (*
 	}
 	defer resp.Body.Close()
 
+	if r, ok := res.(*string); ok {
+		body, err := ioutil.ReadAll(resp.Body)
+
+		if err != nil {
+			return resp, err
+		}
+
+		*r = string(body)
+		return resp, nil
+	}
+
 	if err = json.NewDecoder(resp.Body).Decode(res); err != nil {
-		return nil, err
+		return resp, err
 	}
 
 	return resp, nil
