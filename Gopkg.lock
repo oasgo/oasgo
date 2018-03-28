@@ -8,12 +8,6 @@
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/go-chi/chi"
-  packages = ["."]
-  revision = "e83ac2304db3c50cf03d96a2fcd39009d458bc35"
-  version = "v3.3.2"
-
-[[projects]]
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
@@ -52,6 +46,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "76aa35f12dcc6dab5b477ca6f2821a2a3b669dd142f70cbbff5f3710f8adbfeb"
+  inputs-digest = "b3831dc8084dec28994a9d58ad3d4d25499cbb0b6c2b9c3b6b7b3da3b58a29a9"
   solver-name = "gps-cdcl"
   solver-version = 1
