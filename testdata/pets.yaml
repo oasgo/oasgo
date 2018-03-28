@@ -46,6 +46,13 @@ paths:
       operationId: createPet
       tags:
         - pets
+      parameters:
+        - name: body
+          in: body
+          description: Pet object that needs to be added to the store
+          required: true
+          schema:
+            $ref: "#/components/schemas/Pet"
       responses:
         '201':
           description: Null response

@@ -46,17 +46,23 @@ func (c *RenderContext) find(key string) (name, path string, err error) {
 
 var renderContext = &RenderContext{
 	templates: map[string]string{
-		"package":   "templates/package.tmpl",
-		"signature": "templates/signature.tmpl",
-		"object":    "templates/struct.tmpl",
-		"array":     "templates/array.tmpl",
+		"client":           "templates/client/client.tmpl",
+		"server":           "templates/server/server.tmpl",
+		"client_signature": "templates/client/signature.tmpl",
+		"server_signature": "templates/server/signature.tmpl",
+		"object":           "templates/base/struct.tmpl",
+		"array":            "templates/base/array.tmpl",
 	},
 	predefinedTypes: map[string]string{
 		"string":  "string",
-		"integer": "int",
+		"integer": "int64",
+		"number":  "float64",
+		"boolean": "bool",
 	},
 	abbrs: []string{"id", "href", "url"},
 }
+
+//** Render Schema **
 
 func (s *Schema) RenderType() string {
 	simpleType, ok := renderContext.predefinedTypes[s.Type]
@@ -80,8 +86,6 @@ func (s *Schema) RenderType() string {
 		panic("invalid type")
 	}
 }
-
-//** Render Schema **
 
 // RenderDefinition renders Schema as struct definition.
 func (s *Schema) RenderDefinition() string {
@@ -117,6 +121,20 @@ func (s *Schema) render(name, filename string) string {
 	return buf.String()
 }
 
+//** Operation **
+func (o *Operation) GetBodyName(method string) *string {
+
+	switch method {
+	case "POST", "PUT", "PATCH":
+		for _, el := range o.Parameters {
+			if el.In == "body" {
+				return &el.Name
+			}
+		}
+	}
+	return nil
+}
+
 //** Render Parameter **
 
 func (p *Parameter) RenderAsValue() string {
@@ -134,12 +152,38 @@ func (p *Parameter) RenderType() string {
 }
 
 // RenderAsString converts variable to string if needed.
-func (p *Parameter) RenderAsString() string {
+func (p *Parameter) RenderAsString() (out string) {
 	if p.Schema.Type != "string" {
-		return fmt.Sprintf("strconv.Itoa(%s)", p.RenderAsValue())
+		return fmt.Sprintf("strconv.FormatInt(%s, 10)", p.RenderAsValue())
 	}
+	switch p.Schema.Type {
+	case "integer":
+		out = fmt.Sprintf("strconv.FormatInt(%s, 10)", p.RenderAsValue())
+	case "number":
+		out = fmt.Sprintf("strconv.FormatFloat(%s, 'f', -1, 64)", p.RenderAsValue())
+	default:
+		out = p.RenderAsValue()
+	}
+	return
+}
 
-	return p.RenderAsValue()
+func (p *Parameter) RenderValueTo(value string) (out string) {
+	switch p.Schema.Type {
+	case "integer":
+		out = fmt.Sprintf("%s, err = strconv.ParseInt(%s, 10, 64)", p.RenderAsValue(), value)
+	case "number":
+		out = fmt.Sprintf("%s, err =  strconv.ParseFloat(%s, 64)", p.RenderAsValue(), value)
+	default:
+		out = fmt.Sprintf("%s = %s", p.RenderAsValue(), value)
+	}
+	return
+}
+
+func (p *Parameter) IsReturnsParsingError() bool {
+	if p.Schema.Type == "integer" || p.Schema.Type == "number" {
+		return true
+	}
+	return false
 }
 
 //** Render Swagger **
@@ -150,8 +194,8 @@ func (s *Swagger) String() string {
 	return string(b)
 }
 
-func render(s *Swagger) {
-	tmpl, err := template.New("package.tmpl").Funcs(getFuncMap()).ParseFiles(renderContext.array()...)
+func render(s *Swagger, tmplName string) {
+	tmpl, err := template.New(tmplName).Funcs(getFuncMap()).ParseFiles(renderContext.array()...)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
