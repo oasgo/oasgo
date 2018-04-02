@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 )
@@ -139,9 +140,9 @@ func (o *Operation) GetBodyName(method string) *string {
 
 func (p *Parameter) RenderAsValue() string {
 	if !p.Required {
-		return "*" + p.Name
+		return "*" + p.ToCamelCase()
 	}
-	return p.Name
+	return p.ToCamelCase()
 }
 
 func (p *Parameter) RenderType() string {
@@ -184,6 +185,36 @@ func (p *Parameter) IsReturnsParsingError() bool {
 		return true
 	}
 	return false
+}
+
+func (p *Parameter) ToCamelCase() (out string) {
+
+	bs := []byte(p.Name)
+	bs = regexp.MustCompile(`([a-zA-Z])(\d+)([a-zA-Z]?)`).ReplaceAll(bs, []byte(`$1 $2 $3`))
+	in := strings.Trim(string(bs), " ")
+
+	isNext := false
+	for _, v := range in {
+		if v >= 'A' && v <= 'Z' {
+			out += string(v)
+		}
+		if v >= '0' && v <= '9' {
+			out += string(v)
+		}
+		if v >= 'a' && v <= 'z' {
+			if isNext {
+				out += strings.ToUpper(string(v))
+			} else {
+				out += string(v)
+			}
+		}
+		if v == '_' || v == ' ' || v == '-' {
+			isNext = true
+		} else {
+			isNext = false
+		}
+	}
+	return
 }
 
 //** Render Swagger **

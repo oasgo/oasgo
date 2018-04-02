@@ -23,7 +23,7 @@ var _ HTTPSwaggerPetstoreHelper = new(HTTPSwaggerPetstoreServer)
 
 type (
 	HTTPSwaggerPetstoreHelper interface {
-		ListPets(r *http.Request) (limit *int64, fancy_query_arg int64, err error)
+		ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error)
 		CreatePet(r *http.Request) (body Pet, err error)
 		ShowPetById(r *http.Request) (petId string, err error)
 	}
@@ -50,7 +50,7 @@ func NewHTTPSwaggerPetstoreServer(host, port string, isUseSSL bool) *HTTPSwagger
 	return &HTTPSwaggerPetstoreServer{}
 }
 
-func (c *HTTPSwaggerPetstoreServer) ListPets(r *http.Request) (limit *int64, fancy_query_arg int64, err error) {
+func (c *HTTPSwaggerPetstoreServer) ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
 	value := r.URL.Query().Get("limit")
 	*limit, err = strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -62,7 +62,7 @@ func (c *HTTPSwaggerPetstoreServer) ListPets(r *http.Request) (limit *int64, fan
 		err = errors.New(fmt.Sprintf("Not find required arg: %s", "fancy_query_arg"))
 		return
 	}
-	fancy_query_arg, err = strconv.ParseInt(value, 10, 64)
+	fancyQueryArg, err = strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		err = errors.New(fmt.Sprintf("Parsing error: %s for arg: %s", err.Error(), "fancy_query_arg"))
 		return
