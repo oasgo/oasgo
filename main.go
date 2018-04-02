@@ -30,12 +30,12 @@ var clientCmd = &cobra.Command{
 	},
 }
 
-var serverCmd = &cobra.Command{
-	Use:   "server",
-	Short: "generate server golang file and print it to the output",
+var handlersCmd = &cobra.Command{
+	Use:   "handlers",
+	Short: "generate handlers golang file and print it to the output",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := parse(spec)
-		render(s, "server.tmpl")
+		render(s, "handlers.tmpl")
 	},
 }
 
@@ -43,7 +43,7 @@ func main() {
 	var rootCmd = &cobra.Command{}
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
-	genCmd.AddCommand(clientCmd, serverCmd)
+	genCmd.AddCommand(clientCmd, handlersCmd)
 	rootCmd.Execute()
 }
 

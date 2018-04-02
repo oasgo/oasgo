@@ -19,7 +19,7 @@ type (
     {{ $iName}} interface {
         {{- range $_, $p := .Paths -}}
             {{- range $m, $op := $p.GetMethodsMap }}
-                {{ template "server_signature" $op -}}
+                {{ template "handlers_signature" $op -}}
             {{- end -}}
         {{- end}}
     }
@@ -37,7 +37,7 @@ func New{{ $cName }} (host, port string, isUseSSL bool) *{{ $cName }} {
 
 {{ range $u, $p := .Paths -}}
     {{ range $m, $op := $p.GetMethodsMap }}
-        func (c *{{ $cName }}) {{- template "server_signature" $op -}}{
+        func (c *{{ $cName }}) {{- template "handlers_signature" $op -}}{
             {{- range $i, $arg := $op.Parameters}}
                 {{- if or (eq $arg.In "query") (eq $arg.In "path")}}
 
