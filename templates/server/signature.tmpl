@@ -1,4 +1,4 @@
-{{- define "server_signature" -}}
+{{- define "handlers_signature" -}}
 {{- goName .OperationID false -}} (r *http.Request)(
     {{- if gt (len $.Parameters) 0 -}}
         {{- range $i, $arg := .Parameters}}

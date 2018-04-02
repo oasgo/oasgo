@@ -46,12 +46,12 @@ func (c *RenderContext) find(key string) (name, path string, err error) {
 
 var renderContext = &RenderContext{
 	templates: map[string]string{
-		"client":           "templates/client/client.tmpl",
-		"server":           "templates/server/server.tmpl",
-		"client_signature": "templates/client/signature.tmpl",
-		"server_signature": "templates/server/signature.tmpl",
-		"object":           "templates/base/struct.tmpl",
-		"array":            "templates/base/array.tmpl",
+		"client":             "templates/client/client.tmpl",
+		"handlers":           "templates/server/handlers.tmpl",
+		"client_signature":   "templates/client/signature.tmpl",
+		"handlers_signature": "templates/server/signature.tmpl",
+		"object":             "templates/base/struct.tmpl",
+		"array":              "templates/base/array.tmpl",
 	},
 	predefinedTypes: map[string]string{
 		"string":  "string",
