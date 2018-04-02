@@ -12,11 +12,17 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+)
+
+const (
+	NotFindRequiredArgErr    = "not find required arg: %s"
+	ParsingErr               = "parsing error: %s for arg: %s"
+	CannotReadRequestBodyErr = "can not read request body: %s"
+	IncorrectRequestBodyErr  = "incorrect request body: %s"
 )
 
 type (
@@ -40,17 +46,17 @@ func ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
 	value := r.URL.Query().Get("limit")
 	*limit, err = strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("Parsing error: %s for arg: %s", err.Error(), "limit"))
+		err = fmt.Errorf(ParsingErr, "limit", err.Error())
 		return
 	}
 	value = r.URL.Query().Get("fancy_query_arg")
 	if value == "" {
-		err = errors.New(fmt.Sprintf("Not find required arg: %s", "fancy_query_arg"))
+		err = fmt.Errorf(NotFindRequiredArgErr, "fancy_query_arg")
 		return
 	}
 	fancyQueryArg, err = strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("Parsing error: %s for arg: %s", err.Error(), "fancy_query_arg"))
+		err = fmt.Errorf(ParsingErr, "fancy_query_arg", err.Error())
 		return
 	}
 	return
@@ -58,12 +64,12 @@ func ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
 func CreatePet(r *http.Request) (body Pet, err error) {
 	bs, errl := ioutil.ReadAll(r.Body)
 	if errl != nil {
-		err = errors.New(fmt.Sprintf("Can not read request body: %s", errl.Error()))
+		err = fmt.Errorf(CannotReadRequestBodyErr, errl.Error())
 		return
 	}
 	err = json.Unmarshal(bs, &body)
 	if err != nil {
-		err = errors.New(fmt.Sprintf("Incorrect request body: %s", string(bs)))
+		err = fmt.Errorf(IncorrectRequestBodyErr, string(bs))
 		return
 	}
 	return
@@ -71,7 +77,7 @@ func CreatePet(r *http.Request) (body Pet, err error) {
 func ShowPetById(r *http.Request) (petId string, err error) {
 	value := r.URL.Query().Get("petId")
 	if value == "" {
-		err = errors.New(fmt.Sprintf("Not find required arg: %s", "petId"))
+		err = fmt.Errorf(NotFindRequiredArgErr, "petId")
 		return
 	}
 	petId = value
