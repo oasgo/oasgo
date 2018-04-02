@@ -19,17 +19,7 @@ import (
 	"strconv"
 )
 
-var _ HTTPSwaggerPetstoreHelper = new(HTTPSwaggerPetstoreServer)
-
 type (
-	HTTPSwaggerPetstoreHelper interface {
-		ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error)
-		CreatePet(r *http.Request) (body Pet, err error)
-		ShowPetById(r *http.Request) (petId string, err error)
-	}
-
-	HTTPSwaggerPetstoreServer struct{}
-
 	Error struct {
 		Code    int64  `json:"code"`
 		Message string `json:"message"`
@@ -46,11 +36,7 @@ type (
 	PetsLala []int64
 )
 
-func NewHTTPSwaggerPetstoreServer(host, port string, isUseSSL bool) *HTTPSwaggerPetstoreServer {
-	return &HTTPSwaggerPetstoreServer{}
-}
-
-func (c *HTTPSwaggerPetstoreServer) ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
+func ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
 	value := r.URL.Query().Get("limit")
 	*limit, err = strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -69,8 +55,7 @@ func (c *HTTPSwaggerPetstoreServer) ListPets(r *http.Request) (limit *int64, fan
 	}
 	return
 }
-
-func (c *HTTPSwaggerPetstoreServer) CreatePet(r *http.Request) (body Pet, err error) {
+func CreatePet(r *http.Request) (body Pet, err error) {
 	bs, errl := ioutil.ReadAll(r.Body)
 	if errl != nil {
 		err = errors.New(fmt.Sprintf("Can not read request body: %s", errl.Error()))
@@ -83,8 +68,7 @@ func (c *HTTPSwaggerPetstoreServer) CreatePet(r *http.Request) (body Pet, err er
 	}
 	return
 }
-
-func (c *HTTPSwaggerPetstoreServer) ShowPetById(r *http.Request) (petId string, err error) {
+func ShowPetById(r *http.Request) (petId string, err error) {
 	value := r.URL.Query().Get("petId")
 	if value == "" {
 		err = errors.New(fmt.Sprintf("Not find required arg: %s", "petId"))

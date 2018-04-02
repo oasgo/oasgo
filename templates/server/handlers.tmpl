@@ -10,34 +10,15 @@
 
 package server
 
-{{ $cName := (printf "HTTP%sServer" (goName .Info.Title false) ) }}
-{{ $iName := (printf "HTTP%sHelper" (goName .Info.Title false)) }}
-
-var _ {{ $iName }} = new({{ $cName }})
-
 type (
-    {{ $iName}} interface {
-        {{- range $_, $p := .Paths -}}
-            {{- range $m, $op := $p.GetMethodsMap }}
-                {{ template "handlers_signature" $op -}}
-            {{- end -}}
-        {{- end}}
-    }
-
-    {{ $cName }} struct {}
-
     {{ range $_, $schema := .Components.Schemas }}
     	{{- $schema.RenderDefinition }}
     {{ end }}
 )
 
-func New{{ $cName }} (host, port string, isUseSSL bool) *{{ $cName }} {
-    return &{{ $cName }}{}
-}
-
 {{ range $u, $p := .Paths -}}
-    {{ range $m, $op := $p.GetMethodsMap }}
-        func (c *{{ $cName }}) {{- template "handlers_signature" $op -}}{
+    {{ range $m, $op := $p.GetMethodsMap -}}
+        func {{ template "handlers_signature" $op -}}{
             {{- range $i, $arg := $op.Parameters}}
                 {{- if or (eq $arg.In "query") (eq $arg.In "path")}}
 
