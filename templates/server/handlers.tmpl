@@ -10,6 +10,13 @@
 
 package server
 
+const (
+        NotFindRequiredArgErr = "not find required arg: %s"
+        ParsingErr = "parsing error: %s for arg: %s"
+        CannotReadRequestBodyErr = "can not read request body: %s"
+        IncorrectRequestBodyErr = "incorrect request body: %s"
+)
+
 type (
     {{ range $_, $schema := .Components.Schemas }}
     	{{- $schema.RenderDefinition }}
@@ -30,26 +37,26 @@ type (
                     r.URL.Query().Get("{{- $arg.Name}}")
                     {{- if $arg.Required }}
                         if value == "" {
-                            err = errors.New(fmt.Sprintf("Not find required arg: %s", "{{- $arg.Name}}"))
+                            err = fmt.Errorf(NotFindRequiredArgErr,  "{{$arg.Name}}")
                             return
                         }
                     {{- end }}
                     {{($arg.RenderValueTo "value")}}
                     {{- if $arg.IsReturnsParsingError}}
                         if err != nil {
-                            err = errors.New(fmt.Sprintf("Parsing error: %s for arg: %s", err.Error(), "{{- $arg.Name}}"))
+                            err = fmt.Errorf(ParsingErr, "{{$arg.Name}}", err.Error())
                             return
                         }
                     {{- end }}
                 {{- else if eq $arg.In "body"}}
                     bs, errl := ioutil.ReadAll(r.Body)
                     if errl != nil {
-                        err = errors.New(fmt.Sprintf("Can not read request body: %s", errl.Error()))
+                        err = fmt.Errorf(CannotReadRequestBodyErr, errl.Error())
                         return
                     }
                     err = json.Unmarshal(bs, &{{$arg.Name}})
                     if err != nil {
-                        err = errors.New(fmt.Sprintf("Incorrect request body: %s", string(bs)))
+                        err = fmt.Errorf(IncorrectRequestBodyErr, string(bs))
                         return
                     }
                 {{- end }}
