@@ -25,7 +25,7 @@ var _ SwaggerPetstore = new(HTTPSwaggerPetstoreClient)
 
 type (
 	SwaggerPetstore interface {
-		ListPets(res interface{}, limit *int64, fancy_query_arg int64) (*http.Response, error)
+		ListPets(res interface{}, limit *int64, fancyQueryArg int64) (*http.Response, error)
 		CreatePet(res interface{}, body Pet) (*http.Response, error)
 		ShowPetById(res interface{}, petId string) (*http.Response, error)
 	}
@@ -63,7 +63,7 @@ func NewHTTPSwaggerPetstoreClient(host string) (*HTTPSwaggerPetstoreClient, erro
 }
 
 // ListPets
-func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int64, fancy_query_arg int64) (*http.Response, error) {
+func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int64, fancyQueryArg int64) (*http.Response, error) {
 	u := *c.URL
 	u.Path = "/pets"
 
@@ -73,7 +73,7 @@ func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int64, fancy
 	if limit != nil {
 		q.Set("limit", strconv.FormatInt(*limit, 10))
 	}
-	q.Set("fancy_query_arg", strconv.FormatInt(fancy_query_arg, 10))
+	q.Set("fancy_query_arg", strconv.FormatInt(fancyQueryArg, 10))
 
 	u.RawQuery = q.Encode()
 
