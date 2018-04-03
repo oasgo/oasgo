@@ -3,65 +3,60 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 	"text/template"
+
+	"errors"
+
+	"github.com/gobuffalo/packr"
 )
 
 //** Render context **
 
 type RenderContext struct {
+	Box             *packr.Box
 	templates       map[string]string
 	predefinedTypes map[string]string
 	abbrs           []string
 }
 
-func (c *RenderContext) array() (out []string) {
-	out = make([]string, 0)
-	for _, v := range c.templates {
-		out = append(out, v)
-	}
-	return
-}
+func (c *RenderContext) find(key string) (name, tpl string, err error) {
 
-func (c *RenderContext) find(key string) (name, path string, err error) {
-
-	path, ok := c.templates[key]
+	name = key + ".tmpl"
+	tpl, ok := c.templates[key]
 	if !ok {
 		err = errors.New("invalid type")
 		return
 	}
-
-	i := strings.LastIndex(path, "/")
-	if i < 0 {
-		name = path
-	} else {
-		name = path[i+1:]
-	}
-
 	return
 }
 
-var renderContext = &RenderContext{
-	templates: map[string]string{
-		"client":             "templates/client/client.tmpl",
-		"handlers":           "templates/server/handlers.tmpl",
-		"client_signature":   "templates/client/signature.tmpl",
-		"handlers_signature": "templates/server/signature.tmpl",
-		"object":             "templates/base/struct.tmpl",
-		"array":              "templates/base/array.tmpl",
-	},
-	predefinedTypes: map[string]string{
-		"string":  "string",
-		"integer": "int64",
-		"number":  "float64",
-		"boolean": "bool",
-	},
-	abbrs: []string{"id", "href", "url"},
+func NewRenderContext() *RenderContext {
+	box := packr.NewBox("./templates")
+	return &RenderContext{
+		Box: &box,
+		templates: map[string]string{
+			"client":             box.String("client/client.tmpl"),
+			"handlers":           box.String("server/handlers.tmpl"),
+			"client_signature":   box.String("client/signature.tmpl"),
+			"handlers_signature": box.String("server/signature.tmpl"),
+			"object":             box.String("base/struct.tmpl"),
+			"array":              box.String("base/array.tmpl"),
+		},
+		predefinedTypes: map[string]string{
+			"string":  "string",
+			"integer": "int64",
+			"number":  "float64",
+			"boolean": "bool",
+		},
+		abbrs: []string{"id", "href", "url"},
+	}
 }
+
+var renderContext = NewRenderContext()
 
 //** Render Schema **
 
@@ -95,19 +90,19 @@ func (s *Schema) RenderDefinition() string {
 		return simpleType
 	}
 
-	name, filepath, err := renderContext.find(s.Type)
+	name, tpl, err := renderContext.find(s.Type)
 	if err != nil {
 		panic(err)
 	}
 
-	return s.render(name, filepath)
+	return s.render(name, tpl)
 }
 
-func (s *Schema) render(name, filename string) string {
+func (s *Schema) render(name, tpl string) string {
 
 	buf := bytes.NewBuffer([]byte{})
 
-	tmpl, err := template.New(name).Funcs(getFuncMap()).ParseFiles(filename)
+	tmpl, err := template.New(name).Funcs(getFuncMap()).Parse(tpl)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -226,14 +221,36 @@ func (s *Swagger) String() string {
 }
 
 func render(s *Swagger, tmplName string) {
-	tmpl, err := template.New(tmplName).Funcs(getFuncMap()).ParseFiles(renderContext.array()...)
+
+	_, tpl, err := renderContext.find(tmplName)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
+	}
+
+	tmpl, err := template.New(tmplName).Funcs(getFuncMap()).Parse(tpl)
+	if err != nil {
+		os.Stderr.WriteString("Parse tmpl error: " + err.Error())
 		os.Exit(1)
 	}
-	err = tmpl.Execute(os.Stdout, s)
+
+	for k, v := range renderContext.templates {
+		if k != tmplName {
+			associated, err := template.New(k).Funcs(getFuncMap()).Parse(v)
+			if err != nil {
+				os.Stderr.WriteString("Parse associated tmpl error: " + err.Error())
+				os.Exit(3)
+			}
+			tmpl, err = tmpl.AddParseTree(k, associated.Tree)
+			if err != nil {
+				os.Stderr.WriteString("AddParseTree tmpl error: " + err.Error())
+				os.Exit(4)
+			}
+		}
+	}
+
+	err = tmpl.ExecuteTemplate(os.Stdout, tmplName, s)
 	if err != nil {
-		fmt.Println(err)
+		os.Stderr.WriteString("Execute tmpl error: " + err.Error())
 		os.Exit(2)
 	}
 }
