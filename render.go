@@ -25,7 +25,7 @@ type RenderContext struct {
 
 func (c *RenderContext) find(key string) (name, tpl string, err error) {
 
-	name = key + ".tmpl"
+	name = key
 	tpl, ok := c.templates[key]
 	if !ok {
 		err = errors.New("invalid type")
