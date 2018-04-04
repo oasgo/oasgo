@@ -124,7 +124,7 @@ func (o *Operation) GetBodyName(method string) *string {
 	case "POST", "PUT", "PATCH":
 		for _, el := range o.Parameters {
 			if el.In == "body" {
-				return &el.Name
+				return &(el.Name)
 			}
 		}
 	}
