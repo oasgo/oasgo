@@ -46,11 +46,12 @@ type Operation struct {
 
 // Parameter https://swagger.io/specification/#parameterObject
 type Parameter struct {
-	Name     string
-	In       string
-	Required bool
-	Schema   *Schema
-	Ref      string `yaml:"$ref"`
+	Name         string
+	ExternalName string
+	In           string
+	Required     bool
+	Schema       *Schema
+	Ref          string `yaml:"$ref"`
 }
 
 // Response https://swagger.io/specification/#responseObject
@@ -123,18 +124,22 @@ func newSwagger(data []byte) (*Swagger, error) {
 			})
 		}
 
-		if parameterDest, ok := n.(*Parameter); ok && parameterDest.Ref != "" {
-			refName := getRefName(parameterDest.Ref)
-			Inspect(swagger, func(n interface{}) bool {
-				if parameterSource, ok := n.(*Parameter); ok && parameterSource.Name == refName {
-					ref := parameterDest.Ref
-					*parameterDest = *parameterSource
-					parameterDest.Ref = ref
-					return false
-				}
+		if parameterDest, ok := n.(*Parameter); ok {
+			if parameterDest.Ref != "" {
+				refName := getRefName(parameterDest.Ref)
+				Inspect(swagger, func(n interface{}) bool {
+					if parameterSource, ok := n.(*Parameter); ok && parameterSource.Name == refName {
+						ref := parameterDest.Ref
+						*parameterDest = *parameterSource
+						parameterDest.Ref = ref
+						return false
+					}
 
-				return true
-			})
+					return true
+				})
+			} else if parameterDest.ExternalName == "" {
+				parameterDest.ExternalName = parameterDest.Name
+			}
 		}
 
 		return true
@@ -225,6 +230,7 @@ func (c *Components) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		v.Name = k
 	}
 	for k, v := range r.Parameters {
+		v.ExternalName = v.Name
 		v.Name = k
 	}
 

@@ -54,7 +54,7 @@ type (
                         err = fmt.Errorf(CannotReadRequestBodyErr, errl.Error())
                         return
                     }
-                    err = json.Unmarshal(bs, &{{$arg.Name}})
+                    err = json.Unmarshal(bs, &{{$arg.ToCamelCase}})
                     if err != nil {
                         err = fmt.Errorf(IncorrectRequestBodyErr, string(bs))
                         return

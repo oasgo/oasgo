@@ -149,9 +149,6 @@ func (p *Parameter) RenderType() string {
 
 // RenderAsString converts variable to string if needed.
 func (p *Parameter) RenderAsString() (out string) {
-	if p.Schema.Type != "string" {
-		return fmt.Sprintf("strconv.FormatInt(%s, 10)", p.RenderAsValue())
-	}
 	switch p.Schema.Type {
 	case "integer":
 		out = fmt.Sprintf("strconv.FormatInt(%s, 10)", p.RenderAsValue())
@@ -184,24 +181,25 @@ func (p *Parameter) IsReturnsParsingError() bool {
 
 func (p *Parameter) ToCamelCase() (out string) {
 
-	bs := []byte(p.Name)
+	bs := []byte(p.ExternalName)
 	bs = regexp.MustCompile(`([a-zA-Z])(\d+)([a-zA-Z]?)`).ReplaceAll(bs, []byte(`$1 $2 $3`))
 	in := strings.Trim(string(bs), " ")
 
 	isNext := false
-	for _, v := range in {
-		if v >= 'A' && v <= 'Z' {
-			out += string(v)
+	for i, v := range in {
+		if (v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') {
+			if i == 0 {
+				out += strings.ToLower(string(v))
+			} else {
+				if isNext {
+					out += strings.ToUpper(string(v))
+				} else {
+					out += string(v)
+				}
+			}
 		}
 		if v >= '0' && v <= '9' {
 			out += string(v)
-		}
-		if v >= 'a' && v <= 'z' {
-			if isNext {
-				out += strings.ToUpper(string(v))
-			} else {
-				out += string(v)
-			}
 		}
 		if v == '_' || v == ' ' || v == '-' {
 			isNext = true
