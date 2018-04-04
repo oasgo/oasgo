@@ -47,8 +47,10 @@ func Inspect(node interface{}, visitor func(i interface{}) bool) {
 		for _, v := range n.Responses {
 			Inspect(v, visitor)
 		}
-	case Parameter:
-		Inspect(n.Schema, visitor)
+	case *Parameter:
+		if n.Schema != nil {
+			Inspect(n.Schema, visitor)
+		}
 	case *Response:
 		for _, v := range n.Content {
 			Inspect(v, visitor)
@@ -59,6 +61,9 @@ func Inspect(node interface{}, visitor func(i interface{}) bool) {
 		}
 	case Components:
 		for _, v := range n.Schemas {
+			Inspect(v, visitor)
+		}
+		for _, v := range n.Parameters {
 			Inspect(v, visitor)
 		}
 	case *Schema:
