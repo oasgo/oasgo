@@ -57,10 +57,10 @@ func (e *InvalidBodyError) Error() string {
                     {{- else }}
                         value =
                     {{- end -}}
-                    r.URL.Query().Get("{{- $arg.Name}}")
+                    r.URL.Query().Get("{{- $arg.ExternalName}}")
                     {{- if $arg.Required }}
                         if value == "" {
-                            err = &MissingParameterError{field:  "{{$arg.Name}}"}
+                            err = &MissingParameterError{field:  "{{$arg.ExternalName}}"}
                             return
                         }
                     {{- end }}
@@ -68,7 +68,7 @@ func (e *InvalidBodyError) Error() string {
                     {{- if $arg.IsReturnsParsingError}}
                         if err != nil {
                             err = &InvalidParameterTypeError{
-                                field:"{{$arg.Name}}",
+                                field:"{{$arg.ExternalName}}",
                                 original: err,
                             }
                             return
