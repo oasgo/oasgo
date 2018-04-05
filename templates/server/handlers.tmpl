@@ -11,17 +11,40 @@
 package server
 
 const (
-        NotFindRequiredArgErr = "not find required arg: %s"
-        ParsingErr = "parsing error: %s for arg: %s"
-        CannotReadRequestBodyErr = "can not read request body: %s"
-        IncorrectRequestBodyErr = "incorrect request body: %s"
+        parameterIsMissingErr = "parameter %s is missing"
+        invalidBodyErr = "invalid body"
+        invalidParameterTypeErr = "invalid type of %s: %s"
 )
 
 type (
+    MissingParameterError struct {
+        field string
+    }
+
+    InvalidParameterTypeError struct {
+        field string
+        original error
+    }
+
+    InvalidBodyError struct {
+    }
+
     {{ range $_, $schema := .Components.Schemas }}
     	{{- $schema.RenderDefinition }}
     {{ end }}
 )
+
+func (e *MissingParameterError) Error() string {
+    return fmt.Sprintf(parameterIsMissingErr, e.field)
+}
+
+func (e *InvalidParameterTypeError) Error() string {
+    return fmt.Sprintf(invalidParameterTypeErr,  e.field, e.original.Error())
+}
+
+func (e *InvalidBodyError) Error() string {
+    return invalidBodyErr
+}
 
 {{ range $u, $p := .Paths -}}
     {{ range $m, $op := $p.GetMethodsMap -}}
@@ -37,26 +60,27 @@ type (
                     r.URL.Query().Get("{{- $arg.Name}}")
                     {{- if $arg.Required }}
                         if value == "" {
-                            err = fmt.Errorf(NotFindRequiredArgErr,  "{{$arg.Name}}")
+                            err = &MissingParameterError{field:  "{{$arg.Name}}"}
                             return
                         }
                     {{- end }}
                     {{($arg.RenderValueTo "value")}}
                     {{- if $arg.IsReturnsParsingError}}
                         if err != nil {
-                            err = fmt.Errorf(ParsingErr, "{{$arg.Name}}", err.Error())
+                            err = &InvalidParameterTypeError{
+                                field:"{{$arg.Name}}",
+                                original: err,
+                            }
                             return
                         }
                     {{- end }}
                 {{- else if eq $arg.In "body"}}
-                    bs, errl := ioutil.ReadAll(r.Body)
-                    if errl != nil {
-                        err = fmt.Errorf(CannotReadRequestBodyErr, errl.Error())
-                        return
+                    var bs []byte
+                    if bs, err = ioutil.ReadAll(r.Body); err == nil {
+                        err = json.Unmarshal(bs, &{{$arg.ToCamelCase}})
                     }
-                    err = json.Unmarshal(bs, &{{$arg.ToCamelCase}})
                     if err != nil {
-                        err = fmt.Errorf(IncorrectRequestBodyErr, string(bs))
+                        err = &InvalidBodyError{}
                         return
                     }
                 {{- end }}
