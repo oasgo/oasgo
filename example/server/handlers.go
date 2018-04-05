@@ -3,8 +3,8 @@
 *
 * DO NOT EDIT
 *
-* Swagger Petstore
-* Version: 1.0.0
+* Ecommerce API
+* Version: 3.0.0
 *
  */
 
@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 )
 
 const (
@@ -37,20 +36,94 @@ type (
 	InvalidBodyError struct {
 	}
 
+	Account struct {
+		Address AccountAddress `json:"address"`
+		Email   string         `json:"email"`
+		ID      string         `json:"id"`
+		Name    string         `json:"name"`
+	}
+
+	AccountAddress struct {
+		Address    []string `json:"address"`
+		City       string   `json:"city"`
+		Country    string   `json:"country"`
+		ID         string   `json:"id"`
+		Name       string   `json:"name"`
+		PostalCode string   `json:"postal_code"`
+		State      string   `json:"state"`
+	}
+
+	AccountPMToken struct {
+		ID    string `json:"id"`
+		Token string `json:"token"`
+	}
+
+	AccountPaymentMethodTokenRequestMetadata struct {
+		Currency        string `json:"currency"`
+		ErrorCallback   string `json:"error_callback"`
+		SuccessCallback string `json:"success_callback"`
+	}
+
+	CreateAccountPaymentMethodTokenRequest struct {
+		Metadata          AccountPaymentMethodTokenRequestMetadata `json:"metadata"`
+		PaymentMethodType string                                   `json:"payment_method_type"`
+	}
+
+	CreateAccountPaymentMethodTokenResponse struct {
+		Token AccountPMToken `json:"token"`
+	}
+
+	CreateAccountRequest struct {
+		Account Account `json:"account"`
+	}
+
+	CreateAccountResponse struct {
+		Account Account `json:"account"`
+	}
+
 	Error struct {
 		Code    int64  `json:"code"`
 		Message string `json:"message"`
 	}
 
-	Pet struct {
-		ID   int64  `json:"id"`
-		Name string `json:"name"`
-		Tag  string `json:"tag"`
+	GetAccountPaymentMethodsResponse struct {
+		PaymentMethods []*PaymentMethod    `json:"payment_methods"`
+		Status         PaymentMethodStatus `json:"status"`
 	}
 
-	Pets []Pet
+	GetAccountsResponse struct {
+		Account Account `json:"account"`
+	}
 
-	PetsLala []int64
+	NameValue struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+
+	PMDetails struct {
+		Email      string `json:"email"`
+		LastDigits string `json:"last-digits"`
+	}
+
+	PaymentMethod struct {
+		Details           PMDetails `json:"details"`
+		ID                string    `json:"id"`
+		PaymentMethodType string    `json:"payment_method_type"`
+	}
+
+	PaymentMethodStatus struct {
+		RequestID      string       `json:"request_id"`
+		VendorRequests []*NameValue `json:"vendor_requests"`
+	}
+
+	RegisterAccountPaymentMethodRequest struct {
+		PaymentMethod PaymentMethod `json:"payment_method"`
+	}
+
+	RegisterAccountPaymentMethodResponse struct {
+		PaymentMethod PaymentMethod       `json:"payment_method"`
+		Status        PaymentMethodStatus `json:"status"`
+	}
 )
 
 func (e *MissingParameterError) Error() string {
@@ -65,32 +138,34 @@ func (e *InvalidBodyError) Error() string {
 	return invalidBodyErr
 }
 
-func ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
-	value := r.URL.Query().Get("limit")
-	*limit, err = strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		err = &InvalidParameterTypeError{
-			field:    "limit",
-			original: err,
-		}
-		return
-	}
-	value = r.URL.Query().Get("fancy_query_arg")
+func GetAccounts(r *http.Request) (accountId string, accountPcode string, err error) {
+	value := r.URL.Query().Get("account_id")
 	if value == "" {
-		err = &MissingParameterError{field: "fancy_query_arg"}
+		err = &MissingParameterError{field: "account_id"}
 		return
 	}
-	fancyQueryArg, err = strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		err = &InvalidParameterTypeError{
-			field:    "fancy_query_arg",
-			original: err,
-		}
+	accountId = value
+	value = r.URL.Query().Get("account_pcode")
+	if value == "" {
+		err = &MissingParameterError{field: "account_pcode"}
 		return
 	}
+	accountPcode = value
 	return
 }
-func CreatePet(r *http.Request) (body Pet, err error) {
+func CreateAccount(r *http.Request) (accountId string, accountPcode string, body CreateAccountRequest, err error) {
+	value := r.URL.Query().Get("account_id")
+	if value == "" {
+		err = &MissingParameterError{field: "account_id"}
+		return
+	}
+	accountId = value
+	value = r.URL.Query().Get("account_pcode")
+	if value == "" {
+		err = &MissingParameterError{field: "account_pcode"}
+		return
+	}
+	accountPcode = value
 	var bs []byte
 	if bs, err = ioutil.ReadAll(r.Body); err != nil {
 		return
@@ -101,12 +176,82 @@ func CreatePet(r *http.Request) (body Pet, err error) {
 	}
 	return
 }
-func ShowPetById(r *http.Request) (petId string, err error) {
-	value := r.URL.Query().Get("petId")
+func GetAccountPaymentMethods(r *http.Request) (accountId string, accountPcode string, bvId string, err error) {
+	value := r.URL.Query().Get("account_id")
 	if value == "" {
-		err = &MissingParameterError{field: "petId"}
+		err = &MissingParameterError{field: "account_id"}
 		return
 	}
-	petId = value
+	accountId = value
+	value = r.URL.Query().Get("account_pcode")
+	if value == "" {
+		err = &MissingParameterError{field: "account_pcode"}
+		return
+	}
+	accountPcode = value
+	value = r.URL.Query().Get("bv_id")
+	if value == "" {
+		err = &MissingParameterError{field: "bv_id"}
+		return
+	}
+	bvId = value
+	return
+}
+func RegisterAccountPaymentMethod(r *http.Request) (accountId string, accountPcode string, bvId string, body RegisterAccountPaymentMethodRequest, err error) {
+	value := r.URL.Query().Get("account_id")
+	if value == "" {
+		err = &MissingParameterError{field: "account_id"}
+		return
+	}
+	accountId = value
+	value = r.URL.Query().Get("account_pcode")
+	if value == "" {
+		err = &MissingParameterError{field: "account_pcode"}
+		return
+	}
+	accountPcode = value
+	value = r.URL.Query().Get("bv_id")
+	if value == "" {
+		err = &MissingParameterError{field: "bv_id"}
+		return
+	}
+	bvId = value
+	var bs []byte
+	if bs, err = ioutil.ReadAll(r.Body); err != nil {
+		return
+	}
+	if err = json.Unmarshal(bs, &body); err != nil {
+		err = &InvalidBodyError{}
+		return
+	}
+	return
+}
+func CreateAccountPaymentMethodToken(r *http.Request) (accountId string, accountPcode string, bvId string, body CreateAccountPaymentMethodTokenRequest, err error) {
+	value := r.URL.Query().Get("account_id")
+	if value == "" {
+		err = &MissingParameterError{field: "account_id"}
+		return
+	}
+	accountId = value
+	value = r.URL.Query().Get("account_pcode")
+	if value == "" {
+		err = &MissingParameterError{field: "account_pcode"}
+		return
+	}
+	accountPcode = value
+	value = r.URL.Query().Get("bv_id")
+	if value == "" {
+		err = &MissingParameterError{field: "bv_id"}
+		return
+	}
+	bvId = value
+	var bs []byte
+	if bs, err = ioutil.ReadAll(r.Body); err != nil {
+		return
+	}
+	if err = json.Unmarshal(bs, &body); err != nil {
+		err = &InvalidBodyError{}
+		return
+	}
 	return
 }
