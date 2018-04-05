@@ -76,10 +76,10 @@ func (e *InvalidBodyError) Error() string {
                     {{- end }}
                 {{- else if eq $arg.In "body"}}
                     var bs []byte
-                    if bs, err = ioutil.ReadAll(r.Body); err == nil {
-                        err = json.Unmarshal(bs, &{{$arg.ToCamelCase}})
+                    if bs, err = ioutil.ReadAll(r.Body); err != nil {
+                        return
                     }
-                    if err != nil {
+                    if err = json.Unmarshal(bs, &{{$arg.ToCamelCase}}); err != nil {
                         err = &InvalidBodyError{}
                         return
                     }

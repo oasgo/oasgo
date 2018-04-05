@@ -92,10 +92,10 @@ func ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
 }
 func CreatePet(r *http.Request) (body Pet, err error) {
 	var bs []byte
-	if bs, err = ioutil.ReadAll(r.Body); err == nil {
-		err = json.Unmarshal(bs, &body)
+	if bs, err = ioutil.ReadAll(r.Body); err != nil {
+		return
 	}
-	if err != nil {
+	if err = json.Unmarshal(bs, &body); err != nil {
 		err = &InvalidBodyError{}
 		return
 	}
