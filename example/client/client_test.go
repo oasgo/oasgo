@@ -62,3 +62,29 @@ func TestShowPetById(t *testing.T) {
 
 	assert.Equal(t, p, res)
 }
+
+func TestCreatePet(t *testing.T) {
+	t.Parallel()
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/pets", r.URL.EscapedPath())
+
+		resp, _ := ioutil.ReadFile("./testdata/pet.json")
+		w.Write(resp)
+	}))
+	defer s.Close()
+
+	c, _ := NewHTTPSwaggerPetstoreClient(s.URL)
+	tag := "Good boy"
+	p := Pet{
+		Name: "Doge",
+		Tag:  tag,
+	}
+
+	var res Pet
+	c.CreatePet(&res, p)
+
+	assert.Equal(t, p.Name, res.Name)
+	assert.Equal(t, p.Tag, res.Tag)
+}

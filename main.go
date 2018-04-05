@@ -19,16 +19,31 @@ var parseCmd = &cobra.Command{
 var genCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "generate golang file and print it to the output",
+}
+
+var clientCmd = &cobra.Command{
+	Use:   "client",
+	Short: "generate client golang file and print it to the output",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := parse(spec)
-		render(s)
+		render(s, "client")
+	},
+}
+
+var handlersCmd = &cobra.Command{
+	Use:   "handlers",
+	Short: "generate handlers golang file and print it to the output",
+	Run: func(cmd *cobra.Command, args []string) {
+		s := parse(spec)
+		render(s, "handlers")
 	},
 }
 
 func main() {
-	var rootCmd = &cobra.Command{Use: "fen"}
+	var rootCmd = &cobra.Command{}
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
+	genCmd.AddCommand(clientCmd, handlersCmd)
 	rootCmd.Execute()
 }
 

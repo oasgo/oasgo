@@ -11,18 +11,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var templates = []string{
-	"templates/package.tmpl",
-	"templates/signature.tmpl",
-	"templates/struct.tmpl",
-	"templates/array.tmpl",
-}
-
-var predefinedTypes = map[string]string{
-	"string":  "string",
-	"integer": "int",
-}
-
 // Swagger https://swagger.io/specification/
 type Swagger struct {
 	Info       Info
@@ -52,16 +40,18 @@ type Operation struct {
 	OperationID string `yaml:"operationId"`
 	Summary     string
 	Description string
-	Parameters  []Parameter
+	Parameters  []*Parameter
 	Responses   map[string]*Response
 }
 
 // Parameter https://swagger.io/specification/#parameterObject
 type Parameter struct {
-	Name     string
-	In       string
-	Required bool
-	Schema   *Schema
+	Name         string
+	ExternalName string
+	In           string
+	Required     bool
+	Schema       *Schema
+	Ref          string `yaml:"$ref"`
 }
 
 // Response https://swagger.io/specification/#responseObject
@@ -79,7 +69,8 @@ type Server struct {
 
 // Components https://swagger.io/specification/#componentsObject
 type Components struct {
-	Schemas map[string]*Schema
+	Schemas    map[string]*Schema
+	Parameters map[string]*Parameter
 }
 
 // Schema https://swagger.io/specification/#schemaObject
@@ -113,27 +104,42 @@ type Link struct {
 
 func newSwagger(data []byte) (*Swagger, error) {
 	swagger := Swagger{}
-
 	if err := yaml.Unmarshal(data, &swagger); err != nil {
 		return nil, err
 	}
 
 	// Resolve Schema references
 	Inspect(swagger, func(n interface{}) bool {
-		if schemaDest, ok := n.(*Schema); ok && schemaDest.Ref != "" {
+		if schemaDest, ok := n.(*Schema); ok && schemaDest != nil && schemaDest.Ref != "" {
 			refName := getRefName(schemaDest.Ref)
-
 			Inspect(swagger, func(n interface{}) bool {
-				if schemaSource, ok := n.(*Schema); ok && schemaSource.Name == refName {
+				if schemaSource, ok := n.(*Schema); ok && schemaSource != nil && schemaSource.Name == refName {
 					ref := schemaDest.Ref
 					*schemaDest = *schemaSource
 					schemaDest.Ref = ref
 
 					return false
 				}
-
 				return true
 			})
+		}
+
+		if parameterDest, ok := n.(*Parameter); ok {
+			if parameterDest.Ref != "" {
+				refName := getRefName(parameterDest.Ref)
+				Inspect(swagger, func(n interface{}) bool {
+					if parameterSource, ok := n.(*Parameter); ok && parameterSource.Name == refName {
+						ref := parameterDest.Ref
+						*parameterDest = *parameterSource
+						parameterDest.Ref = ref
+						return false
+					}
+
+					return true
+				})
+			} else if parameterDest.ExternalName == "" {
+				parameterDest.ExternalName = parameterDest.Name
+			}
 		}
 
 		return true
@@ -221,6 +227,10 @@ func (c *Components) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	for k, v := range r.Schemas {
+		v.Name = k
+	}
+	for k, v := range r.Parameters {
+		v.ExternalName = v.Name
 		v.Name = k
 	}
 
