@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var spec string
+var spec, packageName string
 var parseCmd = &cobra.Command{
 	Use:   "parse",
 	Short: "parse openapi spec and prints swagger. Need for debug stuff",
@@ -26,7 +26,7 @@ var clientCmd = &cobra.Command{
 	Short: "generate client golang file and print it to the output",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := parse(spec)
-		render(s, "client")
+		render(s, "client", packageName)
 	},
 }
 
@@ -35,7 +35,7 @@ var handlersCmd = &cobra.Command{
 	Short: "generate handlers golang file and print it to the output",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := parse(spec)
-		render(s, "handlers")
+		render(s, "handlers", packageName)
 	},
 }
 
@@ -44,6 +44,7 @@ func main() {
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
 	genCmd.AddCommand(clientCmd, handlersCmd)
+	genCmd.PersistentFlags().StringVarP(&packageName, "package_name", "n", "", "name for generated package")
 	rootCmd.Execute()
 }
 

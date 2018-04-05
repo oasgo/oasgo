@@ -218,7 +218,7 @@ func (s *Swagger) String() string {
 	return string(b)
 }
 
-func render(s *Swagger, tmplName string) {
+func render(s *Swagger, tmplName, packageName string) {
 
 	_, tpl, err := renderContext.find(tmplName)
 	if err != nil {
@@ -246,7 +246,14 @@ func render(s *Swagger, tmplName string) {
 		}
 	}
 
-	err = tmpl.ExecuteTemplate(os.Stdout, tmplName, s)
+	data := struct {
+		Source      *Swagger
+		PackageName string
+	}{
+		Source:      s,
+		PackageName: packageName,
+	}
+	err = tmpl.ExecuteTemplate(os.Stdout, tmplName, data)
 	if err != nil {
 		os.Stderr.WriteString("Execute tmpl error: " + err.Error())
 		os.Exit(2)
