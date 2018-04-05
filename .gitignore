@@ -1,5 +1,4 @@
 vendor
 .vscode
 .idea
-testdata
-example
+/testdata
