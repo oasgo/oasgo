@@ -34,9 +34,7 @@ type (
         HTTP *http.Client
     }
 
-    {{ range $_, $schema := .Source.Components.Schemas }}
-        {{- $schema.RenderDefinition }}
-    {{ end }}
+    {{ .Source.Components.RenderDefinition }}
 )
 
 func New{{ $cName }} (host string) (*{{ $cName }}, error) {

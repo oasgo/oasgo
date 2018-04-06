@@ -34,9 +34,7 @@ type (
     InvalidBodyError struct {
     }
 
-    {{ range $_, $schema := .Source.Components.Schemas }}
-    	{{- $schema.RenderDefinition }}
-    {{ end }}
+    {{ .Source.Components.RenderDefinition }}
 )
 
 func (e *MissingParameterError) Error() string {

@@ -82,6 +82,7 @@ type Schema struct {
 	Required   []string
 	Properties map[string]*Schema
 	Items      *Schema
+	Parent     *Schema
 }
 
 // Header https://swagger.io/specification/#headerObject
@@ -144,7 +145,6 @@ func newSwagger(data []byte) (*Swagger, error) {
 
 		return true
 	})
-
 	return &swagger, nil
 }
 
