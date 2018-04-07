@@ -68,9 +68,11 @@ func Inspect(node interface{}, visitor func(i interface{}) bool) {
 		}
 	case *Schema:
 		if n.Items != nil {
+			n.Items.Parent = n
 			Inspect(n.Items, visitor)
 		}
 		for _, v := range n.Properties {
+			v.Parent = n
 			Inspect(v, visitor)
 		}
 	}

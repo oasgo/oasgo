@@ -60,26 +60,87 @@ var renderContext = NewRenderContext()
 
 //** Render Schema **
 
-func (s *Schema) RenderType() string {
+func (s *Schema) RenderType(name string) string {
 	simpleType, ok := renderContext.predefinedTypes[s.Type]
 	if ok {
 		return simpleType
 	}
 	switch s.Type {
 	case "object":
+		if s.Name == "" && s.Parent != nil {
+			out := ""
+			if !s.Parent.FindRequired(name) {
+				out += "*"
+			}
+			out += convertToGoName(fmt.Sprintf("%s_%s", s.Parent.Name, name), false)
+			return out
+		}
 		return convertToGoName(s.Name, false)
 	case "array":
 		if s.Name == "" {
 			if s.Items.Name == "" {
+				if s.Items.Type == "object" {
+					return "[]" + s.Items.RenderType(convertToGoName(fmt.Sprintf("%s_%s", s.Parent.Name, name), false))
+				}
 				return "[]" + s.Items.Type
 			}
-
 			return "[]*" + convertToGoName(s.Items.Name, false)
 		}
 
 		return "*" + s.Name
 	default:
-		panic("invalid type")
+		panic("invalid type: " + s.Type)
+	}
+}
+
+func (s *Schema) FindRequired(name string) bool {
+	for _, el := range s.Required {
+		if strings.ToUpper(el) == strings.ToUpper(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (cs *Components) RenderDefinition() (out string) {
+	definitions := make(map[string]*Schema)
+
+	for name, schema := range cs.Schemas {
+		definitions[name] = schema
+		schema.findChildDefinitionsFromProperties(definitions, name)
+	}
+
+	for k, v := range definitions {
+		v.Name = k
+		out += fmt.Sprintf("%s\n", v.RenderDefinition())
+	}
+
+	return
+}
+
+func (s *Schema) findChildDefinitionsFromProperties(definitions map[string]*Schema, name string) {
+	for pname, property := range s.Properties {
+		childName := ""
+		if property.Type == "object" || property.Type == "array" {
+			postfix := property.Name
+			if postfix == "" {
+				postfix = pname
+			}
+			childName = convertToGoName(fmt.Sprintf("%s_%s", name, postfix), false)
+		}
+
+		switch property.Type {
+		case "array":
+			if property.Items.Type == "object" {
+				definitions[childName] = property.Items
+			}
+			property.Items.findChildDefinitionsFromProperties(definitions, childName)
+		case "object":
+			definitions[childName] = property
+			property.findChildDefinitionsFromProperties(definitions, childName)
+		default:
+			property.findChildDefinitionsFromProperties(definitions, childName)
+		}
 	}
 }
 
@@ -124,7 +185,7 @@ func (o *Operation) GetBodyName(method string) *string {
 	case "POST", "PUT", "PATCH":
 		for _, el := range o.Parameters {
 			if el.In == "body" {
-				return &(el.Name)
+				return &(el.ExternalName)
 			}
 		}
 	}
@@ -142,9 +203,9 @@ func (p *Parameter) RenderAsValue() string {
 
 func (p *Parameter) RenderType() string {
 	if !p.Required {
-		return "*" + p.Schema.RenderType()
+		return "*" + p.Schema.RenderType(p.Name)
 	}
-	return p.Schema.RenderType()
+	return p.Schema.RenderType(p.Name)
 }
 
 // RenderAsString converts variable to string if needed.

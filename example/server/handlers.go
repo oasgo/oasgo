@@ -38,11 +38,6 @@ type (
 	InvalidBodyError struct {
 	}
 
-	Error struct {
-		Code    int64  `json:"code"`
-		Message string `json:"message"`
-	}
-
 	Pet struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
@@ -52,6 +47,11 @@ type (
 	Pets []Pet
 
 	PetsLala []int64
+
+	Error struct {
+		Code    int64  `json:"code"`
+		Message string `json:"message"`
+	}
 )
 
 func (e *MissingParameterError) Error() string {
