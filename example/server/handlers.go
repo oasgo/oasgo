@@ -68,7 +68,7 @@ func (e *InvalidBodyError) Error() string {
 
 func ListPets(r *http.Request) (limit *int64, fancyQueryArg int64, err error) {
 	value := r.URL.Query().Get("limit")
-	*limit, err = strconv.ParseInt(value, 10, 64)
+	*limit, err = strconv.ParseInt(r.URL.Query().Get("limit"), 10, 64)
 	if err != nil {
 		err = &InvalidParameterTypeError{
 			field:    "limit",

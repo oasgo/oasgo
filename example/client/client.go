@@ -35,10 +35,6 @@ type (
 		HTTP *http.Client
 	}
 
-	Pets []Pet
-
-	PetsLala []int64
-
 	Error struct {
 		Code    int64  `json:"code"`
 		Message string `json:"message"`
@@ -49,6 +45,10 @@ type (
 		Name string `json:"name"`
 		Tag  string `json:"tag"`
 	}
+
+	Pets []Pet
+
+	PetsLala []int64
 )
 
 func NewHTTPSwaggerPetstoreClient(host string) (*HTTPSwaggerPetstoreClient, error) {

@@ -39,11 +39,20 @@ var handlersCmd = &cobra.Command{
 	},
 }
 
+var handlersV2Cmd = &cobra.Command{
+	Use:   "handlers-v2",
+	Short: "generate handlers golang file and print it to the output",
+	Run: func(cmd *cobra.Command, args []string) {
+		s := parse(spec)
+		renderTree(s)
+	},
+}
+
 func main() {
 	var rootCmd = &cobra.Command{}
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
-	genCmd.AddCommand(clientCmd, handlersCmd)
+	genCmd.AddCommand(clientCmd, handlersCmd, handlersV2Cmd)
 	genCmd.PersistentFlags().StringVarP(&packageName, "package_name", "n", "", "name for generated package")
 	rootCmd.Execute()
 }
