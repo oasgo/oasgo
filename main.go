@@ -48,11 +48,23 @@ var handlersV2Cmd = &cobra.Command{
 	},
 }
 
+var dtoCmd = &cobra.Command{
+	Use:   "dto",
+	Short: "generates DTO structs",
+	Run: func(cmd *cobra.Command, args []string) {
+		s := parse(spec)
+		if packageName == "" {
+			packageName = "dto"
+		}
+		renderDTO(s, packageName)
+	},
+}
+
 func main() {
 	var rootCmd = &cobra.Command{}
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
-	genCmd.AddCommand(clientCmd, handlersCmd, handlersV2Cmd)
+	genCmd.AddCommand(clientCmd, handlersCmd, handlersV2Cmd, dtoCmd)
 	genCmd.PersistentFlags().StringVarP(&packageName, "package_name", "n", "", "name for generated package")
 	rootCmd.Execute()
 }

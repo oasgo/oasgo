@@ -228,18 +228,19 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 	if p, ok := ctx.References[refName]; ok {
 		return p
 	}
-	var required bool
-	for _, a := range schema.Required {
-		if name == a {
-			required = true
-		}
-	}
-	p := property{Name: ToCamelCase(true, name), SourceName: name, Required: required}
+
+	p := property{Name: ToCamelCase(true, name), SourceName: name}
 	switch schema.Type {
 	case "object":
 		ps := &Struct{Name: refName, Properties: []property{}}
 		for n, s := range schema.Properties {
-			ps.Properties = append(ps.Properties, ctx.setProperty(s, n, refName))
+			p := ctx.setProperty(s, n, refName)
+			for _, a := range s.Required {
+				if n == a {
+					p.Required = true
+				}
+			}
+			ps.Properties = append(ps.Properties, p)
 		}
 		p.Reference = ps
 		ctx.References[refName] = p
