@@ -34,7 +34,7 @@ func {{ $f.RenderSignature }} {
 	structTemplate = `
 {{$.Name}} struct {
 	{{ range $p :=  $.Properties }}
-	{{- $p.Name }} {{ $p.Reference.RenderName }}
+	{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
 	{{ end }}
 }
 `
@@ -44,12 +44,54 @@ func {{ $f.RenderSignature }} {
 		`({{range $i, $a := $.Output}}{{$a.Property.Name}} ` +
 		`{{$a.Property.Reference.RenderName}}{{- if lt (inc $i) (len $.Output) -}}, {{- end -}}` +
 		`{{end}})`
+	funcBodyTemplate = `
+{{ if gt (len $.Output) 0 }}
+var value string
+{{ range $i, $p := $.Output }}
+{{$p.RenderExtraction}}
+{{ end }}
+{{ end }}
+return
+`
+	paramTemplate = `
+r.URL.Query().Get("{{- $.Property.SourceName}}")
+{{- if $.Required }}
+	if value == "" {
+		err = &MissingParameterError{field:  "{{- $.Property.SourceName}}"}
+		return
+	}
+{{- end }}
+{{(($.Property.Reference.RenderExtraction $.Property.Name $.Property.SourceName))}}
+`
+	extractIntTemplate = `
+{{$.Name}}, err = strconv.ParseInt(value, 10, 64)
+if err != nil {
+	err = &InvalidParameterTypeError{
+		field:"{{$.Field}}",
+		original: err,
+	}
+	return
+}
+`
+	extractFloatTemplate = `
+{{$.Name}}, err = strconv.ParseFloat(value, 64)
+if err != nil {
+	err = &InvalidParameterTypeError{
+		field:"{{$.Field}}",
+		original: err,
+	}
+	return
+}
+`
+	extractSliceTemplate  = ``
+	extractStructTemplate = ``
 )
 
 type Reference interface {
 	RenderDefinition() string
 	RenderLiteral() string
 	RenderName() string
+	RenderExtraction(varName, oName string) string
 }
 
 type Context struct {
@@ -86,27 +128,34 @@ type property struct {
 	Name       string
 	SourceName string
 	Reference  Reference
+	Required   bool
 }
 
-func (f *Function) RenderSignature() string {
+func renderTemplate(tname, t string, i interface{}) string {
 	buf := bytes.NewBuffer([]byte{})
-	tmpl, err := template.New("signature").Funcs(template.FuncMap{
+
+	tmpl, err := template.New(tname).Funcs(template.FuncMap{
 		"inc": func(i int) int {
 			return i + 1
 		},
-	}).Parse(signatureTemplate)
+	}).Parse(t)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	err = tmpl.Execute(buf, f)
+	err = tmpl.Execute(buf, i)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(2)
 	}
 
 	return buf.String()
+
+}
+
+func (f *Function) RenderSignature() string {
+	return renderTemplate("signature", signatureTemplate, f)
 }
 
 func newParam(in string, required bool, p property) Param {
@@ -115,63 +164,63 @@ func newParam(in string, required bool, p property) Param {
 }
 
 func (f *Function) RenderBody() string {
-	return ""
+	return renderTemplate("funcBody", funcBodyTemplate, f)
 }
 
 func (s *String) RenderLiteral() string    { return "string" }
 func (s *String) RenderName() string       { return "string" }
 func (s *String) RenderDefinition() string { return "" }
-
-func (s *Integer) RenderLiteral() string    { return "int64" }
-func (s *Integer) RenderName() string       { return "int64" }
-func (s *Integer) RenderDefinition() string { return "" }
-
-func (s *Number) RenderLiteral() string    { return "float64" }
-func (s *Number) RenderName() string       { return "float64" }
-func (s *Number) RenderDefinition() string { return "" }
-
-func (s *Slice) RenderLiteral() string { return s.Name }
-func (s *Slice) RenderName() string    { return "[]" + s.ItemsType.Reference.RenderName() }
-
-func (s *Slice) RenderDefinition() string {
-	buf := bytes.NewBuffer([]byte{})
-
-	tmpl, err := template.New("slice").Parse(arrayTemplate)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	err = tmpl.Execute(buf, s)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(2)
-	}
-
-	return buf.String()
-
+func (s *String) RenderExtraction(vn, on string) string {
+	return fmt.Sprintf("%s = value", vn)
 }
 
-func (s *Struct) RenderLiteral() string { return s.Name }
-func (s *Struct) RenderName() string    { return s.Name }
+func (i *Integer) RenderLiteral() string    { return "int64" }
+func (i *Integer) RenderName() string       { return "int64" }
+func (i *Integer) RenderDefinition() string { return "" }
+func (i *Integer) RenderExtraction(vn, on string) string {
+	return renderTemplate(
+		"int", extractIntTemplate,
+		struct {
+			Name  string
+			Field string
+		}{vn, on})
+}
 
-func (s *Struct) RenderDefinition() string {
-	buf := bytes.NewBuffer([]byte{})
+func (n *Number) RenderLiteral() string    { return "float64" }
+func (n *Number) RenderName() string       { return "float64" }
+func (n *Number) RenderDefinition() string { return "" }
+func (n *Number) RenderExtraction(vn, on string) string {
+	return renderTemplate(
+		"float", extractFloatTemplate,
+		struct {
+			Name  string
+			Field string
+		}{vn, on})
+}
 
-	tmpl, err := template.New("struct").Parse(structTemplate)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+func (s *Slice) RenderLiteral() string    { return s.Name }
+func (s *Slice) RenderName() string       { return "[]" + s.ItemsType.Reference.RenderName() }
+func (s *Slice) RenderDefinition() string { return renderTemplate("slice", arrayTemplate, s) }
+func (s *Slice) RenderExtraction(vn, on string) string {
+	return renderTemplate("sliceExtract", extractSliceTemplate, s)
+}
+
+func (s *Struct) RenderLiteral() string    { return s.Name }
+func (s *Struct) RenderName() string       { return s.Name }
+func (s *Struct) RenderDefinition() string { return renderTemplate("struct", structTemplate, s) }
+func (s *Struct) RenderExtraction(vn, on string) string {
+	return renderTemplate("structExtract", extractStructTemplate, s)
+}
+func (s *Struct) RenderTags(p property) string {
+	tags := []string{fmt.Sprintf("json:\"%s\"", p.SourceName)}
+	if p.Required {
+		tags = append(tags, "valid:\"required\"")
 	}
+	return fmt.Sprintf("`%s`", strings.Join(tags, " "))
+}
 
-	err = tmpl.Execute(buf, s)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(2)
-	}
-
-	return buf.String()
-
+func (p *Param) RenderExtraction() string {
+	return renderTemplate("paramExtract", paramTemplate, p)
 }
 
 func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
@@ -179,7 +228,13 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 	if p, ok := ctx.References[refName]; ok {
 		return p
 	}
-	p := property{Name: ToCamelCase(true, name)}
+	var required bool
+	for _, a := range schema.Required {
+		if name == a {
+			required = true
+		}
+	}
+	p := property{Name: ToCamelCase(true, name), SourceName: name, Required: required}
 	switch schema.Type {
 	case "object":
 		ps := &Struct{Name: refName, Properties: []property{}}
@@ -205,7 +260,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 func (ctx *Context) getParams(ps []*Parameter, opID string) []Param {
 	inputs := []Param{}
 	for _, p := range ps {
-		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.Name, opID)))
+		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID)))
 	}
 	return inputs
 }
