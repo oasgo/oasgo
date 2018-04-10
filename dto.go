@@ -17,14 +17,18 @@ const (
 package {{.PackageName}}
 type (
 	{{ range $r := .References }}
-		{{ $r.Reference.RenderDefinition }}
+		{{$r.Reference.RenderDefinition}}
 	{{ end }}
 )
+{{ range $r := .References }}
+func (r *{{$r.Reference.Name}}) Validate() (bool, error) {
+	return govalidator.ValidateStruct(r)
+}
+{{ end }}
 `
 )
 
 func renderDTO(s *Swagger, pn string) {
-
 	tmpl, err := template.New("dto").Parse(DTOTemplate)
 	if err != nil {
 		os.Stderr.WriteString("Parse tmpl error: " + err.Error())

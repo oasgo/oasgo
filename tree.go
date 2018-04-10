@@ -31,13 +31,11 @@ func {{ $f.RenderSignature }} {
 	}
 {{ end }}
 `
-	structTemplate = `
-{{$.Name}} struct {
+	structTemplate = `{{$.Name}} struct {
 	{{ range $p :=  $.Properties }}
 	{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
 	{{ end }}
-}
-`
+}`
 	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName}}`
 	signatureTemplate = `` +
 		`{{$.Name}}(r *http.Request)` +
@@ -235,7 +233,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 		ps := &Struct{Name: refName, Properties: []property{}}
 		for n, s := range schema.Properties {
 			p := ctx.setProperty(s, n, refName)
-			for _, a := range s.Required {
+			for _, a := range schema.Required {
 				if n == a {
 					p.Required = true
 				}
@@ -275,7 +273,7 @@ func renderTree(s *Swagger) {
 	}
 
 	c := Context{
-		PackageName: "mypacakge",
+		PackageName: "mypackage",
 		References:  make(map[string]property),
 		Functions:   []Function{},
 	}
