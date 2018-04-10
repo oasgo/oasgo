@@ -30,24 +30,6 @@ var clientCmd = &cobra.Command{
 	},
 }
 
-var handlersCmd = &cobra.Command{
-	Use:   "handlers",
-	Short: "generate handlers golang file and print it to the output",
-	Run: func(cmd *cobra.Command, args []string) {
-		s := parse(spec)
-		render(s, "handlers", packageName)
-	},
-}
-
-var handlersV2Cmd = &cobra.Command{
-	Use:   "handlers-v2",
-	Short: "generate handlers golang file and print it to the output",
-	Run: func(cmd *cobra.Command, args []string) {
-		s := parse(spec)
-		renderTree(s)
-	},
-}
-
 var dtoCmd = &cobra.Command{
 	Use:   "dto",
 	Short: "generates DTO structs",
@@ -64,7 +46,7 @@ func main() {
 	var rootCmd = &cobra.Command{}
 	rootCmd.AddCommand(parseCmd, genCmd)
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
-	genCmd.AddCommand(clientCmd, handlersCmd, handlersV2Cmd, dtoCmd)
+	genCmd.AddCommand(clientCmd, dtoCmd)
 	genCmd.PersistentFlags().StringVarP(&packageName, "package_name", "n", "", "name for generated package")
 	rootCmd.Execute()
 }
