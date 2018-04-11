@@ -39,12 +39,10 @@ func NewRenderContext() *RenderContext {
 	return &RenderContext{
 		Box: &box,
 		templates: map[string]string{
-			"client":             box.String("client/client.tmpl"),
-			"handlers":           box.String("server/handlers.tmpl"),
-			"client_signature":   box.String("client/signature.tmpl"),
-			"handlers_signature": box.String("server/signature.tmpl"),
-			"object":             box.String("base/struct.tmpl"),
-			"array":              box.String("base/array.tmpl"),
+			"client":           box.String("client/client.tmpl"),
+			"client_signature": box.String("client/signature.tmpl"),
+			"object":           box.String("base/struct.tmpl"),
+			"array":            box.String("base/array.tmpl"),
 		},
 		predefinedTypes: map[string]string{
 			"string":  "string",

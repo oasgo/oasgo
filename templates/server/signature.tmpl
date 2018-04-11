@@ -1,9 +1,0 @@
-{{- define "handlers_signature" -}}
-{{- goName .OperationID false -}} (r *http.Request)(
-    {{- if gt (len $.Parameters) 0 -}}
-        {{- range $i, $arg := .Parameters}}
-            {{- $arg.ToCamelCase }} {{ $arg.RenderType}} {{- if lt (inc $i) (len $.Parameters) -}}, {{- end -}}
-        {{- end -}},
-    {{- end -}}
-    err error)
-{{- end}}
