@@ -19,15 +19,13 @@ paths:
           description: How many items to return at one time (max 100)
           required: false
           schema:
-            type: integer
-            format: int32
+            type: string
         - name: fancy_query_arg
           in: query
           description: some fancy quering
           required: true
           schema:
-            type: integer
-            format: int32
+            type: string
       responses:
         '200':
           description: An paged array of pets
@@ -127,14 +125,18 @@ components:
           type: string
         tag:
           type: string
-    Pets:
-      type: array
-      items:
-        $ref: "#/components/schemas/Pet"
-    PetsLala:
-      type: array
-      items:
-        type: integer
+        nested:
+          type: object
+          properties:
+            omg:
+              type: object
+              properties:
+                very_omg_type:
+                  type: integer
+            name:
+              type: string
+            second_name:
+              type: integer
     Error:
       required:
         - code
