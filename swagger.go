@@ -40,8 +40,16 @@ type Operation struct {
 	OperationID string `yaml:"operationId"`
 	Summary     string
 	Description string
+	RequestBody *RequestBody `yaml:"requestBody"`
 	Parameters  []*Parameter
 	Responses   map[string]*Response
+}
+
+// RequestBody https://github.com/OAI/OpenAPI-Specification/blob/OpenAPI.next/versions/3.0.0.md#requestBodyObject
+type RequestBody struct {
+	Description string
+	Required    bool
+	Content     map[string]*MediaType
 }
 
 // Parameter https://swagger.io/specification/#parameterObject

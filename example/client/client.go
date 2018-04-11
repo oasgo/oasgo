@@ -17,7 +17,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -25,7 +24,7 @@ var _ SwaggerPetstore = new(HTTPSwaggerPetstoreClient)
 
 type (
 	SwaggerPetstore interface {
-		ListPets(res interface{}, limit *int64, fancyQueryArg int64) (*http.Response, error)
+		ListPets(res interface{}, limit *string, fancyQueryArg string) (*http.Response, error)
 		CreatePet(res interface{}, body Pet) (*http.Response, error)
 		ShowPetById(res interface{}, petId string) (*http.Response, error)
 	}
@@ -35,20 +34,27 @@ type (
 		HTTP *http.Client
 	}
 
+	Pet struct {
+		ID     int64      `json:"id"`
+		Name   string     `json:"name"`
+		Nested *PetNested `json:"nested"`
+		Tag    string     `json:"tag"`
+	}
+
+	PetNested struct {
+		Name       string        `json:"name"`
+		Omg        *PetNestedOmg `json:"omg"`
+		SecondName int64         `json:"second_name"`
+	}
+
+	PetNestedOmg struct {
+		VeryOmgType int64 `json:"very_omg_type"`
+	}
+
 	Error struct {
 		Code    int64  `json:"code"`
 		Message string `json:"message"`
 	}
-
-	Pet struct {
-		ID   int64  `json:"id"`
-		Name string `json:"name"`
-		Tag  string `json:"tag"`
-	}
-
-	Pets []Pet
-
-	PetsLala []int64
 )
 
 func NewHTTPSwaggerPetstoreClient(host string) (*HTTPSwaggerPetstoreClient, error) {
@@ -62,8 +68,7 @@ func NewHTTPSwaggerPetstoreClient(host string) (*HTTPSwaggerPetstoreClient, erro
 	}, nil
 }
 
-// ListPets
-func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int64, fancyQueryArg int64) (*http.Response, error) {
+func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *string, fancyQueryArg string) (*http.Response, error) {
 	u := *c.URL
 	u.Path = "/pets"
 
@@ -71,9 +76,9 @@ func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int64, fancy
 
 	q := u.Query()
 	if limit != nil {
-		q.Set("limit", strconv.FormatInt(*limit, 10))
+		q.Set("limit", *limit)
 	}
-	q.Set("fancy_query_arg", strconv.FormatInt(fancyQueryArg, 10))
+	q.Set("fancy_query_arg", fancyQueryArg)
 
 	u.RawQuery = q.Encode()
 
@@ -106,15 +111,9 @@ func (c HTTPSwaggerPetstoreClient) ListPets(res interface{}, limit *int64, fancy
 	return resp, nil
 }
 
-// CreatePet
 func (c HTTPSwaggerPetstoreClient) CreatePet(res interface{}, body Pet) (*http.Response, error) {
 	u := *c.URL
 	u.Path = "/pets"
-
-	u.Path = strings.NewReplacer().Replace(u.Path)
-
-	q := u.Query()
-	u.RawQuery = q.Encode()
 
 	bs, err := json.Marshal(body)
 	if err != nil {
@@ -149,7 +148,6 @@ func (c HTTPSwaggerPetstoreClient) CreatePet(res interface{}, body Pet) (*http.R
 	return resp, nil
 }
 
-// ShowPetById
 func (c HTTPSwaggerPetstoreClient) ShowPetById(res interface{}, petId string) (*http.Response, error) {
 	u := *c.URL
 	u.Path = "/pets/{petId}"

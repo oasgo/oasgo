@@ -24,7 +24,7 @@ type (
     {{ $iName}} interface {
         {{- range $_, $p := .Source.Paths -}}
             {{- range $m, $op := $p.GetMethodsMap }}
-                {{ template "client_signature" $op -}}
+                {{ template "client_signature" toTemplate "Operation" $op "Method" $m -}}
             {{- end -}}
         {{- end}}
     }
@@ -50,8 +50,7 @@ func New{{ $cName }} (host string) (*{{ $cName }}, error) {
 
 {{ range $u, $p := .Source.Paths -}}
 	{{ range $m, $op := $p.GetMethodsMap }}
-// {{ goName .OperationID false }} {{ $op.Description }}
-func (c {{ $cName }}) {{- template "client_signature" $op -}}{
+func (c {{ $cName }}) {{- template "client_signature" toTemplate "Operation" $op "Method" $m -}}{
 	u := *c.URL
   u.Path = "{{- $u -}}"
 
@@ -85,9 +84,8 @@ func (c {{ $cName }}) {{- template "client_signature" $op -}}{
     u.RawQuery = q.Encode()
   {{end}}
 
-  {{$body := ($op.GetBodyName $m)}}
-  {{if $body}}
-      bs, err := json.Marshal({{$body}})
+  {{if ($op.GetBody $m)}}
+      bs, err := json.Marshal(body)
       if err != nil {
         return nil, err
       }
