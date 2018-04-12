@@ -59,25 +59,43 @@ func renderDTO(s *Swagger, pn string) {
 		}
 	}
 
-	ocs := &OperationsContext{}
 	for _, m := range s.Paths {
 		if m.GET != nil {
-			ocs.Add(operationContext{Operation: m.GET, HasResponse: true, HasRequestBody: false})
+			c.Functions = append(c.Functions, Function{
+				Name:   ToCamelCase(true, m.GET.OperationID),
+				Input:  c.getParams(m.GET.Parameters, nil, m.GET.OperationID),
+				Output: c.getResponses(m.GET.Responses, m.GET.OperationID),
+			})
 		}
 		if m.POST != nil {
-			ocs.Add(operationContext{Operation: m.POST, HasResponse: true, HasRequestBody: true})
+			c.Functions = append(c.Functions, Function{
+				Name:   ToCamelCase(true, m.POST.OperationID),
+				Input:  c.getParams(m.POST.Parameters, m.POST.RequestBody, m.POST.OperationID),
+				Output: c.getResponses(m.POST.Responses, m.POST.OperationID),
+			})
 		}
 		if m.PUT != nil {
-			ocs.Add(operationContext{Operation: m.PUT, HasResponse: true, HasRequestBody: true})
+			c.Functions = append(c.Functions, Function{
+				Name:   ToCamelCase(true, m.PUT.OperationID),
+				Input:  c.getParams(m.PUT.Parameters, m.PUT.RequestBody, m.PUT.OperationID),
+				Output: c.getResponses(m.PUT.Responses, m.PUT.OperationID),
+			})
 		}
 		if m.PATCH != nil {
-			ocs.Add(operationContext{Operation: m.PATCH, HasResponse: true, HasRequestBody: true})
+			c.Functions = append(c.Functions, Function{
+				Name:   ToCamelCase(true, m.PATCH.OperationID),
+				Input:  c.getParams(m.PATCH.Parameters, m.PATCH.RequestBody, m.PATCH.OperationID),
+				Output: c.getResponses(m.PATCH.Responses, m.PATCH.OperationID),
+			})
 		}
 		if m.DELETE != nil {
-			ocs.Add(operationContext{Operation: m.DELETE, HasResponse: true, HasRequestBody: false})
+			c.Functions = append(c.Functions, Function{
+				Name:   ToCamelCase(true, m.DELETE.OperationID),
+				Input:  c.getParams(m.DELETE.Parameters, nil, m.DELETE.OperationID),
+				Output: c.getResponses(m.DELETE.Responses, m.DELETE.OperationID),
+			})
 		}
 	}
-	c.setOperation(ocs)
 
 	err = tmpl.Execute(os.Stdout, c)
 	if err != nil {
