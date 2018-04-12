@@ -287,7 +287,18 @@ func (rb *RequestBody) check(key string) bool {
 			return true
 		}
 	}
+	return false
+}
 
+func (rb *Response) check(key string) bool {
+	availableKeys := []string{
+		"application/json",
+	}
+	for _, el := range availableKeys {
+		if key == el {
+			return true
+		}
+	}
 	return false
 }
 

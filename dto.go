@@ -40,9 +40,45 @@ func renderDTO(s *Swagger, pn string) {
 		References:  make(map[string]property),
 		Functions:   []Function{},
 	}
+
 	for n, schema := range s.Components.Schemas {
 		c.setProperty(schema, n, "")
 	}
+	for n, rb := range s.Components.RequestBodies {
+		for k, mt := range rb.Content {
+			if rb.check(k) {
+				c.setProperty(mt.Schema, n, "")
+			}
+		}
+	}
+	for n, response := range s.Components.Responses {
+		for k, mt := range response.Content {
+			if response.check(k) {
+				c.setProperty(mt.Schema, n, "")
+			}
+		}
+	}
+
+	ocs := &OperationsContext{}
+	for _, m := range s.Paths {
+		if m.GET != nil {
+			ocs.Add(operationContext{Operation: m.GET, HasResponse: true, HasRequestBody: false})
+		}
+		if m.POST != nil {
+			ocs.Add(operationContext{Operation: m.POST, HasResponse: true, HasRequestBody: true})
+		}
+		if m.PUT != nil {
+			ocs.Add(operationContext{Operation: m.PUT, HasResponse: true, HasRequestBody: true})
+		}
+		if m.PATCH != nil {
+			ocs.Add(operationContext{Operation: m.PATCH, HasResponse: true, HasRequestBody: true})
+		}
+		if m.DELETE != nil {
+			ocs.Add(operationContext{Operation: m.DELETE, HasResponse: true, HasRequestBody: false})
+		}
+	}
+	c.setOperation(ocs)
+
 	err = tmpl.Execute(os.Stdout, c)
 	if err != nil {
 		os.Stderr.WriteString("Execute tmpl error: " + err.Error())

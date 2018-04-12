@@ -50,6 +50,7 @@ type RequestBody struct {
 	Description string
 	Required    bool
 	Content     map[string]*MediaType
+	Ref         string `yaml:"$ref"`
 }
 
 // Parameter https://swagger.io/specification/#parameterObject
@@ -77,8 +78,10 @@ type Server struct {
 
 // Components https://swagger.io/specification/#componentsObject
 type Components struct {
-	Schemas    map[string]*Schema
-	Parameters map[string]*Parameter
+	Schemas       map[string]*Schema
+	Parameters    map[string]*Parameter
+	RequestBodies map[string]*RequestBody `yaml:"requestBodies"`
+	Responses     map[string]*Response    `yaml:"responses"`
 }
 
 // Schema https://swagger.io/specification/#schemaObject

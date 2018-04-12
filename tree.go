@@ -129,6 +129,14 @@ type property struct {
 	Required   bool
 }
 
+type OperationsContext []operationContext
+
+type operationContext struct {
+	Operation      *Operation
+	HasResponse    bool
+	HasRequestBody bool
+}
+
 func renderTemplate(tname, t string, i interface{}) string {
 	buf := bytes.NewBuffer([]byte{})
 
@@ -256,12 +264,49 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 	return p
 }
 
+func (ctx *Context) setOperation(context *OperationsContext) {
+	if context == nil {
+		return
+	}
+	for _, oc := range *context {
+		if oc.HasResponse {
+			ctx.setResponse(oc.Operation, "Response")
+		}
+		if oc.HasRequestBody {
+			ctx.setRequestBody(oc.Operation, "Request")
+		}
+	}
+}
+
+func (ctx *Context) setResponse(operation *Operation, postfix string) property {
+	if res := operation.GetResult(); res != nil {
+		return ctx.setProperty(res, postfix, operation.OperationID)
+	}
+	return property{Name: ToCamelCase(true, postfix), SourceName: operation.OperationID}
+}
+
+func (ctx *Context) setRequestBody(operation *Operation, postfix string) []property {
+	out := make([]property, 0)
+	if res := operation.RequestBody; res != nil {
+		for k, mt := range res.Content {
+			if res.check(k) {
+				out = append(out, ctx.setProperty(mt.Schema, postfix, operation.OperationID))
+			}
+		}
+	}
+	return out
+}
+
 func (ctx *Context) getParams(ps []*Parameter, opID string) []Param {
 	inputs := []Param{}
 	for _, p := range ps {
 		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID)))
 	}
 	return inputs
+}
+
+func (ocs *OperationsContext) Add(context operationContext) {
+	*ocs = append(*ocs, context)
 }
 
 func renderTree(s *Swagger) {
