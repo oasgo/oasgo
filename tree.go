@@ -18,6 +18,7 @@ const (
 	{{ end }}
 }`
 	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName}}`
+	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName}}`
 	signatureTemplate = `` +
 		`{{$.Name}}(r *http.Request)` +
 		`({{range $i, $a := $.Output}}{{$a.Property.Name}} ` +
@@ -63,6 +64,7 @@ if err != nil {
 }
 `
 	extractSliceTemplate  = ``
+	extractDictTemplate   = ``
 	extractStructTemplate = ``
 )
 
@@ -96,6 +98,11 @@ type Struct struct {
 }
 
 type Slice struct {
+	ItemsType property
+	Name      string
+}
+
+type Dictionary struct {
 	ItemsType property
 	Name      string
 }
@@ -185,6 +192,13 @@ func (s *Slice) RenderExtraction(vn, on string) string {
 	return renderTemplate("sliceExtract", extractSliceTemplate, s)
 }
 
+func (s *Dictionary) RenderLiteral() string    { return s.Name }
+func (s *Dictionary) RenderName() string       { return "map[string]" + s.ItemsType.Reference.RenderName() }
+func (s *Dictionary) RenderDefinition() string { return renderTemplate("dict", dictTemplate, s) }
+func (s *Dictionary) RenderExtraction(vn, on string) string {
+	return renderTemplate("dictExtract", extractDictTemplate, s)
+}
+
 func (s *Struct) RenderLiteral() string    { return s.Name }
 func (s *Struct) RenderName() string       { return s.Name }
 func (s *Struct) RenderDefinition() string { return renderTemplate("struct", structTemplate, s) }
@@ -212,29 +226,53 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 	p := property{Name: ToCamelCase(true, name), SourceName: name}
 	switch schema.Type {
 	case "object":
-		ps := &Struct{Name: refName, Properties: []property{}}
-		for n, s := range schema.Properties {
-			var p property
-			if s.Ref != "" {
-				p = ctx.setProperty(s, n, "")
-			} else {
-				p = ctx.setProperty(s, n, refName)
+		if schema.AdditionalProperties == nil {
+			ps := &Struct{Name: refName, Properties: []property{}}
+			for n, s := range schema.Properties {
+				var p property
+				if s.Ref != "" {
+					p = ctx.setProperty(s, n, "")
+				} else {
+					p = ctx.setProperty(s, n, refName)
+				}
+				for _, a := range schema.Required {
+					if n == a {
+						p.Required = true
+					}
+				}
+				ps.Properties = append(ps.Properties, p)
 			}
-			for _, a := range schema.Required {
-				if n == a {
-					p.Required = true
+			p.Reference = ps
+			ctx.References[refName] = p
+		} else {
+			if schema.AdditionalProperties.Ref != "" {
+				p.Reference = &Dictionary{
+					Name:      getRefName(schema.AdditionalProperties.Ref),
+					ItemsType: ctx.setProperty(schema.AdditionalProperties, "", getRefName(schema.AdditionalProperties.Ref)),
+				}
+			} else {
+				p.Reference = &Dictionary{
+					Name:      refName,
+					ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName),
 				}
 			}
-			ps.Properties = append(ps.Properties, p)
 		}
-		p.Reference = ps
-		ctx.References[refName] = p
 	case "string":
 		p.Reference = &String{}
 	case "integer":
 		p.Reference = &Integer{}
 	case "array":
-		p.Reference = &Slice{Name: refName, ItemsType: ctx.setProperty(schema.Items, "", refName)}
+		if schema.Items.Ref != "" {
+			p.Reference = &Slice{
+				Name:      getRefName(schema.Items.Ref),
+				ItemsType: ctx.setProperty(schema.Items, "", getRefName(schema.Items.Ref)),
+			}
+		} else {
+			p.Reference = &Slice{
+				Name:      refName,
+				ItemsType: ctx.setProperty(schema.Items, "", refName),
+			}
+		}
 	case "number":
 		p.Reference = &Number{}
 	default:

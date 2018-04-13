@@ -86,14 +86,15 @@ type Components struct {
 
 // Schema https://swagger.io/specification/#schemaObject
 type Schema struct {
-	Name       string
-	Ref        string `yaml:"$ref"`
-	Type       string
-	Format     string
-	Required   []string
-	Properties map[string]*Schema
-	Items      *Schema
-	Parent     *Schema
+	Name                 string
+	Ref                  string `yaml:"$ref"`
+	Type                 string
+	Format               string
+	Required             []string
+	Properties           map[string]*Schema
+	Items                *Schema
+	Parent               *Schema
+	AdditionalProperties *Schema `yaml:"additionalProperties"`
 }
 
 // Header https://swagger.io/specification/#headerObject
