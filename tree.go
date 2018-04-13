@@ -214,7 +214,12 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 	case "object":
 		ps := &Struct{Name: refName, Properties: []property{}}
 		for n, s := range schema.Properties {
-			p := ctx.setProperty(s, n, refName)
+			var p property
+			if s.Ref != "" {
+				p = ctx.setProperty(s, n, "")
+			} else {
+				p = ctx.setProperty(s, n, refName)
+			}
 			for _, a := range schema.Required {
 				if n == a {
 					p.Required = true
@@ -246,7 +251,11 @@ func (ctx *Context) getParams(ps []*Parameter, rb *RequestBody, opID string) []P
 	if rb != nil {
 		for k, mt := range rb.Content {
 			if rb.check(k) {
-				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID)))
+				if rb.Ref != "" {
+					inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "", getRefName(rb.Ref))))
+				} else {
+					inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID)))
+				}
 			}
 		}
 	}
