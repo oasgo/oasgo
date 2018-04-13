@@ -39,12 +39,10 @@ func NewRenderContext() *RenderContext {
 	return &RenderContext{
 		Box: &box,
 		templates: map[string]string{
-			"client":             box.String("client/client.tmpl"),
-			"handlers":           box.String("server/handlers.tmpl"),
-			"client_signature":   box.String("client/signature.tmpl"),
-			"handlers_signature": box.String("server/signature.tmpl"),
-			"object":             box.String("base/struct.tmpl"),
-			"array":              box.String("base/array.tmpl"),
+			"client":           box.String("client/client.tmpl"),
+			"client_signature": box.String("client/signature.tmpl"),
+			"object":           box.String("base/struct.tmpl"),
+			"array":            box.String("base/array.tmpl"),
 		},
 		predefinedTypes: map[string]string{
 			"string":  "string",
@@ -179,13 +177,14 @@ func (s *Schema) render(name, tpl string) string {
 }
 
 //** Operation **
-func (o *Operation) GetBodyName(method string) *string {
-
+func (o *Operation) GetBody(method string) *MediaType {
 	switch method {
 	case "POST", "PUT", "PATCH":
-		for _, el := range o.Parameters {
-			if el.In == "body" {
-				return &(el.ExternalName)
+		if rb := o.RequestBody; rb != nil {
+			for k, v := range rb.Content {
+				if rb.check(k) {
+					return v
+				}
 			}
 		}
 	}
@@ -279,6 +278,30 @@ func (s *Swagger) String() string {
 	return string(b)
 }
 
+func (rb *RequestBody) check(key string) bool {
+	availableKeys := []string{
+		"application/json",
+	}
+	for _, el := range availableKeys {
+		if key == el {
+			return true
+		}
+	}
+	return false
+}
+
+func (rb *Response) check(key string) bool {
+	availableKeys := []string{
+		"application/json",
+	}
+	for _, el := range availableKeys {
+		if key == el {
+			return true
+		}
+	}
+	return false
+}
+
 func render(s *Swagger, tmplName, packageName string) {
 
 	_, tpl, err := renderContext.find(tmplName)
@@ -353,6 +376,20 @@ func getFuncMap() template.FuncMap {
 		},
 		"contains": func(s []string, item string) bool {
 			return contains(s, item)
+		},
+		"toTemplate": func(values ...interface{}) (map[string]interface{}, error) {
+			if len(values)%2 != 0 {
+				return nil, errors.New("invalid call")
+			}
+			dict := make(map[string]interface{}, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil, errors.New("keys must be strings")
+				}
+				dict[key] = values[i+1]
+			}
+			return dict, nil
 		},
 	}
 }

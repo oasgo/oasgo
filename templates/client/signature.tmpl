@@ -1,7 +1,9 @@
 {{- define "client_signature" -}}
-{{- goName .OperationID false -}} (res interface{},
-    {{- range $i, $arg := .Parameters}}
-        {{- $arg.ToCamelCase }} {{ $arg.RenderType}} {{- if lt (inc $i) (len $.Parameters) -}}, {{- end -}}
+{{- goName .Operation.OperationID false -}} (res interface{},
+    {{- $body := (.Operation.GetBody .Method)}}
+    {{- if $body}}body {{ $body.Schema.RenderType "body"}},{{- end -}}
+    {{- range $i, $arg := .Operation.Parameters}}
+        {{- $arg.ToCamelCase }} {{ $arg.RenderType}} {{- if lt (inc $i) (len $.Operation.Parameters) -}}, {{- end -}}
     {{- end -}}
 ) (*http.Response, error)
 {{- end}}

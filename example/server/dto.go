@@ -16,10 +16,10 @@ type (
 	}
 
 	Pet struct {
-		Id     int64     `json:"id" valid:"required"`
-		Name   string    `json:"name" valid:"required"`
 		Tag    string    `json:"tag"`
 		Nested PetNested `json:"nested"`
+		Id     int64     `json:"id" valid:"required"`
+		Name   string    `json:"name" valid:"required"`
 	}
 
 	PetNested struct {
