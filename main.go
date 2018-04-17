@@ -26,7 +26,10 @@ var clientCmd = &cobra.Command{
 	Short: "generate client golang file and print it to the output",
 	Run: func(cmd *cobra.Command, args []string) {
 		s := parse(spec)
-		render(s, "client", packageName)
+		if packageName == "" {
+			packageName = "client"
+		}
+		renderClient(s, packageName)
 	},
 }
 

@@ -19,11 +19,11 @@ const (
 }`
 	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName}}`
 	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName}}`
-	signatureTemplate = `` +
-		`{{$.Name}}(r *http.Request)` +
-		`({{range $i, $a := $.Output}}{{$a.Property.Name}} ` +
-		`{{$a.Property.Reference.RenderName}}{{- if lt (inc $i) (len $.Output) -}}, {{- end -}}` +
-		`{{end}})`
+	signatureTemplate = `{{$.Name}} ( res interface{},
+	{{- range $i, $p := $.Input }}
+		{{- $p.Property.Name}} {{$p.Property.Reference.RenderName}} {{- if lt (inc $i) (len $.Input) -}}, {{- end -}}
+	{{- end -}}
+	)(*http.Response, error)`
 	funcBodyTemplate = `
 {{ if gt (len $.Output) 0 }}
 var value string
@@ -77,6 +77,7 @@ type Reference interface {
 
 type Context struct {
 	PackageName string
+	Info        Info
 	References  map[string]property
 	Functions   []Function
 }
