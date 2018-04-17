@@ -40,19 +40,19 @@ func renderDTO(s *Swagger, pn string) {
 	}
 
 	for n, schema := range s.Components.Schemas {
-		c.setProperty(schema, n, "")
+		c.setProperty(schema, n, "", "")
 	}
 	for n, rb := range s.Components.RequestBodies {
 		for k, mt := range rb.Content {
 			if rb.check(k) {
-				c.setProperty(mt.Schema, n, "")
+				c.setProperty(mt.Schema, n, "", "")
 			}
 		}
 	}
 	for n, response := range s.Components.Responses {
 		for k, mt := range response.Content {
 			if response.check(k) {
-				c.setProperty(mt.Schema, n, "")
+				c.setProperty(mt.Schema, n, "", "")
 			}
 		}
 	}

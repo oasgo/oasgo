@@ -218,8 +218,14 @@ func (p *Param) RenderExtraction() string {
 	return renderTemplate("paramExtract", paramTemplate, p)
 }
 
-func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
-	refName := ToCamelCase(true, pname, name)
+func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) property {
+
+	var refName string
+	if rname != "" {
+		refName = rname
+	} else {
+		refName = ToCamelCase(true, pname, name)
+	}
 	if p, ok := ctx.References[refName]; ok {
 		return p
 	}
@@ -230,12 +236,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 		if schema.AdditionalProperties == nil {
 			ps := &Struct{Name: refName, Properties: []property{}}
 			for n, s := range schema.Properties {
-				var p property
-				if s.Ref != "" {
-					p = ctx.setProperty(s, n, "")
-				} else {
-					p = ctx.setProperty(s, n, refName)
-				}
+				p := ctx.setProperty(s, n, refName, getRefName(s.Ref))
 				for _, a := range schema.Required {
 					if n == a {
 						p.Required = true
@@ -246,16 +247,9 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 			p.Reference = ps
 			ctx.References[refName] = p
 		} else {
-			if schema.AdditionalProperties.Ref != "" {
-				p.Reference = &Dictionary{
-					Name:      getRefName(schema.AdditionalProperties.Ref),
-					ItemsType: ctx.setProperty(schema.AdditionalProperties, "", getRefName(schema.AdditionalProperties.Ref)),
-				}
-			} else {
-				p.Reference = &Dictionary{
-					Name:      refName,
-					ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName),
-				}
+			p.Reference = &Dictionary{
+				Name:      refName,
+				ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName, getRefName(schema.AdditionalProperties.Ref)),
 			}
 		}
 	case "string":
@@ -263,16 +257,9 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 	case "integer":
 		p.Reference = &Integer{}
 	case "array":
-		if schema.Items.Ref != "" {
-			p.Reference = &Slice{
-				Name:      getRefName(schema.Items.Ref),
-				ItemsType: ctx.setProperty(schema.Items, "", getRefName(schema.Items.Ref)),
-			}
-		} else {
-			p.Reference = &Slice{
-				Name:      refName,
-				ItemsType: ctx.setProperty(schema.Items, "", refName),
-			}
+		p.Reference = &Slice{
+			Name:      getRefName(schema.Items.Ref),
+			ItemsType: ctx.setProperty(schema.Items, "", refName, getRefName(schema.Items.Ref)),
 		}
 	case "number":
 		p.Reference = &Number{}
@@ -285,16 +272,12 @@ func (ctx *Context) setProperty(schema *Schema, name, pname string) property {
 func (ctx *Context) getParams(ps []*Parameter, rb *RequestBody, opID string) []Param {
 	inputs := []Param{}
 	for _, p := range ps {
-		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID)))
+		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID, getRefName(p.Ref))))
 	}
 	if rb != nil {
 		for k, mt := range rb.Content {
 			if rb.check(k) {
-				if rb.Ref != "" {
-					inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "", getRefName(rb.Ref))))
-				} else {
-					inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID)))
-				}
+				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID, getRefName(rb.Ref))))
 			}
 		}
 	}
@@ -311,7 +294,7 @@ func (ctx *Context) getResponses(rs map[string]*Response, opID string) []Param {
 		if code >= http.StatusOK && code < http.StatusBadRequest {
 			for k, mt := range response.Content {
 				if response.check(k) {
-					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID)))
+					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID, "")))
 				}
 			}
 		}
