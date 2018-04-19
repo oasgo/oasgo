@@ -195,24 +195,6 @@ func (o *Operation) GetResult() (r *Schema) {
 	return
 }
 
-func parse(path string) *Swagger {
-	data, err := ioutil.ReadFile(path)
-
-	if err != nil {
-		flag.PrintDefaults()
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	s, err := newSwagger(data)
-
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	return s
-}
-
 // UnmarshalYAML defines default Type for Schema struct.
 func (s *Schema) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type rs Schema
@@ -249,4 +231,119 @@ func (c *Components) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = Components(r)
 
 	return nil
+}
+
+func (rb *RequestBody) Check(key string) bool {
+	return check([]string{"application/json"}, key)
+}
+
+func (rb *Response) Check(key string) bool {
+	return check([]string{"application/json"}, key)
+}
+
+// Inspect calls visitor function on (almost) every node within Swagger struct.
+func Inspect(node interface{}, visitor func(i interface{}) bool) {
+	if ok := visitor(node); !ok {
+		return
+	}
+
+	switch n := node.(type) {
+	case Swagger:
+		Inspect(n.Components, visitor)
+
+		for _, v := range n.Paths {
+			Inspect(v, visitor)
+		}
+	case PathItem:
+		if n.GET != nil {
+			Inspect(n.GET, visitor)
+		}
+		if n.POST != nil {
+			Inspect(n.POST, visitor)
+		}
+		if n.PATCH != nil {
+			Inspect(n.PATCH, visitor)
+		}
+		if n.PUT != nil {
+			Inspect(n.PUT, visitor)
+		}
+		if n.DELETE != nil {
+			Inspect(n.DELETE, visitor)
+		}
+	case *Operation:
+		for _, v := range n.Parameters {
+			Inspect(v, visitor)
+		}
+		for _, v := range n.Responses {
+			Inspect(v, visitor)
+		}
+		if n.RequestBody != nil {
+			Inspect(n.RequestBody, visitor)
+		}
+	case *Parameter:
+		if n.Schema != nil {
+			Inspect(n.Schema, visitor)
+		}
+	case *Response:
+		for _, v := range n.Content {
+			Inspect(v, visitor)
+		}
+	case *MediaType:
+		if n.Schema != nil {
+			Inspect(n.Schema, visitor)
+		}
+	case Components:
+		for _, v := range n.Schemas {
+			Inspect(v, visitor)
+		}
+		for _, v := range n.Parameters {
+			Inspect(v, visitor)
+		}
+		for _, v := range n.RequestBodies {
+			Inspect(v, visitor)
+		}
+		for _, v := range n.Responses {
+			Inspect(v, visitor)
+		}
+	case *Schema:
+		if n.Items != nil {
+			n.Items.Parent = n
+			Inspect(n.Items, visitor)
+		}
+		for _, v := range n.Properties {
+			v.Parent = n
+			Inspect(v, visitor)
+		}
+	case *RequestBody:
+		for _, v := range n.Content {
+			Inspect(v, visitor)
+		}
+	}
+}
+
+func parse(path string) *Swagger {
+	data, err := ioutil.ReadFile(path)
+
+	if err != nil {
+		flag.PrintDefaults()
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	s, err := newSwagger(data)
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return s
+}
+
+func check(availableKeys []string, key string) bool {
+	for _, el := range availableKeys {
+		if key == el {
+			return true
+		}
+	}
+	return false
 }

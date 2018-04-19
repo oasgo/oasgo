@@ -47,13 +47,31 @@ func New{{ $cName }} (host string) (*{{ $cName }}, error) {
 }
 
 {{- range $f := .Functions }}
-func (c *{{ $cName }}) {{$f.Name}} ( res interface{}, 
-	{{- range $i, $p := $f.Input }}
-		{{- $p.Property.Name}} {{$p.Property.Reference.RenderName}} {{- if lt (inc $i) (len $f.Input) -}}, {{- end -}}
-	{{- end -}})(*http.Response, error) {
-	{{- $f.RenderBody}}
+func (c *{{ $cName }}) {{$f.RenderSignature}} {
+	{{- $f.RenderBody -}}
+}
+{{ end }}
+
+func (c *{{ $cName }}) sendRequest(res interface{}, request *http.Request) (*http.Response, error){
+	resp, err := c.HTTP.Do(request)
+	if err != nil {
+		return nil, err
 	}
-{{- end -}}
+	defer resp.Body.Close()
+
+	if r, ok := res.(*string); ok {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return resp, err
+		}
+
+		*r = string(body)
+		return resp, nil
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(res)
+	return resp, err
+}
 
 `
 
@@ -72,57 +90,67 @@ func renderClient(s *Swagger, pn string) {
 	}
 
 	for n, schema := range s.Components.Schemas {
-		c.setProperty(schema, n, "")
+		c.setProperty(schema, n, "", "")
 	}
 	for n, rb := range s.Components.RequestBodies {
 		for k, mt := range rb.Content {
-			if rb.check(k) {
-				c.setProperty(mt.Schema, n, "")
+			if rb.Check(k) {
+				c.setProperty(mt.Schema, n, "", "")
 			}
 		}
 	}
 	for n, response := range s.Components.Responses {
 		for k, mt := range response.Content {
-			if response.check(k) {
-				c.setProperty(mt.Schema, n, "")
+			if response.Check(k) {
+				c.setProperty(mt.Schema, n, "", "")
 			}
 		}
 	}
 
-	for _, m := range s.Paths {
+	for path, m := range s.Paths {
 		if m.GET != nil {
 			c.Functions = append(c.Functions, Function{
-				Name:   ToCamelCase(true, m.GET.OperationID),
-				Input:  c.getParams(m.GET.Parameters, nil, m.GET.OperationID),
-				Output: c.getResponses(m.GET.Responses, m.GET.OperationID),
+				Name:          ToCamelCase(true, m.GET.OperationID),
+				Path:          path,
+				OperationType: GET,
+				Input:         c.getParams(m.GET.Parameters, nil, m.GET.OperationID),
+				Output:        c.getResponses(m.GET.Responses, m.GET.OperationID),
 			})
 		}
 		if m.POST != nil {
 			c.Functions = append(c.Functions, Function{
-				Name:   ToCamelCase(true, m.POST.OperationID),
-				Input:  c.getParams(m.POST.Parameters, m.POST.RequestBody, m.POST.OperationID),
-				Output: c.getResponses(m.POST.Responses, m.POST.OperationID),
+				Name:          ToCamelCase(true, m.POST.OperationID),
+				Path:          path,
+				OperationType: POST,
+				Input:         c.getParams(m.POST.Parameters, m.POST.RequestBody, m.POST.OperationID),
+				Output:        c.getResponses(m.POST.Responses, m.POST.OperationID),
 			})
 		}
 		if m.PUT != nil {
 			c.Functions = append(c.Functions, Function{
-				Name:   ToCamelCase(true, m.PUT.OperationID),
-				Input:  c.getParams(m.PUT.Parameters, m.PUT.RequestBody, m.PUT.OperationID),
-				Output: c.getResponses(m.PUT.Responses, m.PUT.OperationID),
+				Name:          ToCamelCase(true, m.PUT.OperationID),
+				Path:          path,
+				OperationType: PUT,
+				Input:         c.getParams(m.PUT.Parameters, m.PUT.RequestBody, m.PUT.OperationID),
+				Output:        c.getResponses(m.PUT.Responses, m.PUT.OperationID),
 			})
 		}
 		if m.PATCH != nil {
 			c.Functions = append(c.Functions, Function{
-				Name:   ToCamelCase(true, m.PATCH.OperationID),
-				Input:  c.getParams(m.PATCH.Parameters, m.PATCH.RequestBody, m.PATCH.OperationID),
-				Output: c.getResponses(m.PATCH.Responses, m.PATCH.OperationID),
+				Name:          ToCamelCase(true, m.PATCH.OperationID),
+				Path:          path,
+				OperationType: PATCH,
+				Input:         c.getParams(m.PATCH.Parameters, m.PATCH.RequestBody, m.PATCH.OperationID),
+				Output:        c.getResponses(m.PATCH.Responses, m.PATCH.OperationID),
 			})
 		}
 		if m.DELETE != nil {
 			c.Functions = append(c.Functions, Function{
-				Name:   ToCamelCase(true, m.DELETE.OperationID),
-				Input:  c.getParams(m.DELETE.Parameters, nil, m.DELETE.OperationID),
-				Output: c.getResponses(m.DELETE.Responses, m.DELETE.OperationID),
+				Name:          ToCamelCase(true, m.DELETE.OperationID),
+				Path:          path,
+				OperationType: DELETE,
+				Input:         c.getParams(m.DELETE.Parameters, nil, m.DELETE.OperationID),
+				Output:        c.getResponses(m.DELETE.Responses, m.DELETE.OperationID),
 			})
 		}
 	}
@@ -131,5 +159,16 @@ func renderClient(s *Swagger, pn string) {
 	if err != nil {
 		os.Stderr.WriteString("Execute tmpl error: " + err.Error())
 		os.Exit(2)
+	}
+}
+
+func getFuncMap() template.FuncMap {
+	return template.FuncMap{
+		"inc": func(i int) int {
+			return i + 1
+		},
+		"goName": func(name string, upper bool) string {
+			return ToCamelCase(true, name)
+		},
 	}
 }

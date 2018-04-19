@@ -44,14 +44,14 @@ func renderDTO(s *Swagger, pn string) {
 	}
 	for n, rb := range s.Components.RequestBodies {
 		for k, mt := range rb.Content {
-			if rb.check(k) {
+			if rb.Check(k) {
 				c.setProperty(mt.Schema, n, "", "")
 			}
 		}
 	}
 	for n, response := range s.Components.Responses {
 		for k, mt := range response.Content {
-			if response.check(k) {
+			if response.Check(k) {
 				c.setProperty(mt.Schema, n, "", "")
 			}
 		}
