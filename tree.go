@@ -12,61 +12,125 @@ import (
 )
 
 const (
-	structTemplate = `{{$.Name}} struct {
-	{{ range $p :=  $.Properties }}
-	{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
-	{{ end }}
-}`
+	structTemplate = `
+	{{- $.Name }} struct {
+		{{ range $p :=  $.Properties }}
+			{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
+		{{ end }}
+	}`
 	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName}}`
 	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName}}`
-	signatureTemplate = `` +
-		`{{$.Name}}(r *http.Request)` +
-		`({{range $i, $a := $.Output}}{{$a.Property.Name}} ` +
-		`{{$a.Property.Reference.RenderName}}{{- if lt (inc $i) (len $.Output) -}}, {{- end -}}` +
-		`{{end}})`
+	signatureTemplate = `{{$.Name}} ( res interface{},
+	{{- range $i, $p := $.Input }}
+		{{- if eq $p.In "body"}} body {{ else }} {{ $p.Property.Name }} {{ end -}}	
+		{{ $p.Property.Reference.RenderName }} {{- if lt (inc $i) (len $.Input) -}}, {{- end -}}
+	{{- end -}}
+	)(*http.Response, error)`
 	funcBodyTemplate = `
-{{ if gt (len $.Output) 0 }}
-var value string
-{{ range $i, $p := $.Output }}
-{{$p.RenderExtraction}}
-{{ end }}
-{{ end }}
-return
+	{{ if $.HasPathParam }}
+		c.URL.Path = strings.NewReplacer(
+			{{ $.RenderPathParams }}
+		).Replace("{{- $.Path -}}")
+		{{$.RenderQueryParams}}
+	{{ else }}
+		c.URL.Path = "{{- $.Path -}}"
+	{{ end }}
+	{{$.RenderRequestBody}}
 `
-	paramTemplate = `
-r.URL.Query().Get("{{- $.Property.SourceName}}")
-{{- if $.Required }}
-	if value == "" {
-		err = &MissingParameterError{field:  "{{- $.Property.SourceName}}"}
-		return
+	pathParamsTemplate = `
+    {{- range $p := $.GetPathParams}}
+		{{- $p.RenderPathParam}}
+    {{- end }}
+
+`
+	queryParamsTemplate = `
+	q := c.URL.Query()
+    {{ range $p := $.GetQueryParams}}
+		{{- $p.RenderQueryParam}}
+    {{- end }}
+    c.URL.RawQuery = q.Encode()
+`
+	requestBodyTemplate = `
+	{{$body := $.GetBody}}
+	{{if $body}}
+		bs, err := json.Marshal(body)
+      	if err != nil {
+        	return nil, err
+      	}
+      	request, err := http.NewRequest("{{$.OperationType.String}}", c.URL.String(), bytes.NewBuffer(bs))
+  	{{- else}}
+      	request, err := http.NewRequest("{{$.OperationType.String}}", c.URL.String(), nil)
+	{{end}}
+	if err != nil {
+		return nil, err
 	}
-{{- end }}
-{{(($.Property.Reference.RenderExtraction $.Property.Name $.Property.SourceName))}}
+
+	return c.sendRequest(res, request)`
+
+	paramTemplate = `
+	r.URL.Query().Get("{{- $.Property.SourceName}}")
+	{{- if $.Required }}
+		if value == "" {
+			err = &MissingParameterError{field:  "{{- $.Property.SourceName}}"}
+			return
+		}
+	{{- end }}
+	{{(($.Property.Reference.RenderExtraction $.Property.Name $.Property.SourceName))}}
+`
+	setPathParamTemplate = `
+	{{- if not $.Required }}
+		if {{- $.Property.Name}} != "" {
+	{{- end -}}
+	"{{"{"}}{{- $.Property.SourceName}}{{"}"}}", {{$.Property.Name}},
+	{{- if not $.Required }}
+		}
+	{{- end  }}
+`
+	setQueryParamTemplate = `
+	{{- if not $.Required }}
+		if {{- $.Property.Name}} != "" {
+	{{- end -}}
+		q.Set("{{- $.Property.SourceName}}", {{- $.Property.Name}})
+	{{- if not $.Required }}
+		}
+	{{- end  }}
 `
 	extractIntTemplate = `
-{{$.Name}}, err = strconv.ParseInt(value, 10, 64)
-if err != nil {
-	err = &InvalidParameterTypeError{
-		field:"{{$.Field}}",
-		original: err,
+	{{$.Name}}, err = strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		err = &InvalidParameterTypeError{
+			field:"{{$.Field}}",
+			original: err,
+		}
+		return
 	}
-	return
-}
 `
 	extractFloatTemplate = `
-{{$.Name}}, err = strconv.ParseFloat(value, 64)
-if err != nil {
-	err = &InvalidParameterTypeError{
-		field:"{{$.Field}}",
-		original: err,
+	{{$.Name}}, err = strconv.ParseFloat(value, 64)
+	if err != nil {
+		err = &InvalidParameterTypeError{
+			field:"{{$.Field}}",
+			original: err,
+		}
+		return
 	}
-	return
-}
 `
 	extractSliceTemplate  = ``
 	extractDictTemplate   = ``
 	extractStructTemplate = ``
 )
+
+const (
+	GET OperationType = iota
+	POST
+	PUT
+	PATCH
+	DELETE
+)
+
+var operationTypeValues = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
+
+type OperationType int
 
 type Reference interface {
 	RenderDefinition() string
@@ -77,13 +141,16 @@ type Reference interface {
 
 type Context struct {
 	PackageName string
+	Info        Info
 	References  map[string]property
 	Functions   []Function
 }
 type Function struct {
-	Name   string
-	Input  []Param
-	Output []Param
+	Name          string
+	Path          string
+	OperationType OperationType
+	Input         []Param
+	Output        []Param
 }
 
 type Param struct {
@@ -152,6 +219,62 @@ func newParam(in string, required bool, p property) Param {
 
 func (f *Function) RenderBody() string {
 	return renderTemplate("funcBody", funcBodyTemplate, f)
+}
+
+func (f *Function) RenderPathParams() string {
+	return renderTemplate("pathParams", pathParamsTemplate, f)
+}
+
+func (f *Function) RenderQueryParams() string {
+	return renderTemplate("queryParams", queryParamsTemplate, f)
+}
+
+func (f *Function) RenderRequestBody() string {
+	return renderTemplate("requestBody", requestBodyTemplate, f)
+}
+
+func (f *Function) GetBody() *Param {
+	for _, el := range f.Input {
+		if el.In == "body" {
+			return &el
+		}
+	}
+	return nil
+}
+
+func (f *Function) HasPathParam() bool {
+	for _, el := range f.Input {
+		if el.In == "path" {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *Function) GetPathParams() (params []Param) {
+	return f.getParamsByIn("path")
+}
+
+func (f *Function) GetQueryParams() (params []Param) {
+	return f.getParamsByIn("query")
+}
+
+func (f *Function) getParamsByIn(in string) (params []Param) {
+	params = make([]Param, 0)
+	for _, el := range f.Input {
+		if el.In == in {
+			params = append(params, el)
+		}
+	}
+	return
+}
+
+func (p *Param) RenderPathParam() string {
+	return renderTemplate("pParam", setPathParamTemplate, p)
+}
+
+func (p *Param) RenderQueryParam() string {
+	return renderTemplate("qParam", setQueryParamTemplate, p)
 }
 
 func (s *String) RenderLiteral() string    { return "string" }
@@ -275,7 +398,7 @@ func (ctx *Context) getParams(ps []*Parameter, rb *RequestBody, opID string) []P
 	}
 	if rb != nil {
 		for k, mt := range rb.Content {
-			if rb.check(k) {
+			if rb.Check(k) {
 				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID, getRefName(rb.Ref))))
 			}
 		}
@@ -292,13 +415,17 @@ func (ctx *Context) getResponses(rs map[string]*Response, opID string) []Param {
 		}
 		if code >= http.StatusOK && code < http.StatusBadRequest {
 			for k, mt := range response.Content {
-				if response.check(k) {
+				if response.Check(k) {
 					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID, "")))
 				}
 			}
 		}
 	}
 	return inputs
+}
+
+func (ot OperationType) String() string {
+	return operationTypeValues[ot]
 }
 
 func ToCamelCase(upper bool, names ...string) (out string) {

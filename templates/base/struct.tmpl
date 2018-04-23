@@ -1,6 +1,0 @@
-{{$.Name}} struct {
-	{{- range $field, $t := $.Properties }}
-		{{- $gn :=  goName $field false }}
-		{{$gn}} {{ $t.RenderType $gn}} `json:"{{- $field -}}"`
-	{{- end }}
-}

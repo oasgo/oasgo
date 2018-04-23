@@ -14,22 +14,10 @@
   version = "v1.1.0"
 
 [[projects]]
-  name = "github.com/gobuffalo/packr"
-  packages = ["."]
-  revision = "3402a167bccf1bdd5c93ca820be9f27bba46261e"
-  version = "v1.10.7"
-
-[[projects]]
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
   version = "v1.0"
-
-[[projects]]
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
-  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -64,6 +52,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d73541337b62539223c7c8a9e732b5d170a89ae5d8c4838bde325e79bf6c5a64"
+  inputs-digest = "127ce2aa4916befb4656466ab21a16bc0a27f851789d15a0dc3f5d660181e67d"
   solver-name = "gps-cdcl"
   solver-version = 1
