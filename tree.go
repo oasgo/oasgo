@@ -347,9 +347,9 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 		refName = rname
 	} else {
 		refName = ToCamelCase(true, pname, name)
-	}
-	if p, ok := ctx.References[refName]; ok {
-		return p
+		if p, ok := ctx.References[refName]; ok {
+			return p
+		}
 	}
 
 	p := property{Name: ToCamelCase(true, name), SourceName: name}
