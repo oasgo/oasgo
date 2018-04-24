@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var spec, packageName string
+var spec, packageName, destination string
 var parseCmd = &cobra.Command{
 	Use:   "parse",
 	Short: "parse openapi spec and prints swagger. Need for debug stuff",
@@ -29,7 +29,7 @@ var clientCmd = &cobra.Command{
 		if packageName == "" {
 			packageName = "client"
 		}
-		renderClient(s, packageName)
+		renderClient(s, packageName, destination)
 	},
 }
 
@@ -41,7 +41,7 @@ var dtoCmd = &cobra.Command{
 		if packageName == "" {
 			packageName = "dto"
 		}
-		renderDTO(s, packageName)
+		renderDTO(s, packageName, destination)
 	},
 }
 
@@ -51,6 +51,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&spec, "file", "f", "", "path to swagger spec")
 	genCmd.AddCommand(clientCmd, dtoCmd)
 	genCmd.PersistentFlags().StringVarP(&packageName, "package_name", "n", "", "name for generated package")
+	genCmd.PersistentFlags().StringVarP(&destination, "destination", "d", "", "destination for generated package")
 	rootCmd.Execute()
 }
 

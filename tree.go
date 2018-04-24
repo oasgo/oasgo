@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -14,7 +15,7 @@ import (
 const (
 	structTemplate = `
 	{{- $.Name }} struct {
-		{{ range $p :=  $.Properties }}
+		{{ range $p :=  $.SortedProperties }}
 			{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
 		{{ end }}
 	}`
@@ -185,6 +186,10 @@ type property struct {
 	Required   bool
 }
 
+type functions []Function
+type propertiesByLiteral []property
+type propertiesByName []property
+
 func renderTemplate(tname, t string, i interface{}) string {
 	buf := bytes.NewBuffer([]byte{})
 
@@ -206,6 +211,25 @@ func renderTemplate(tname, t string, i interface{}) string {
 
 	return buf.String()
 
+}
+
+func (c Context) SortedFunctions() []Function {
+	sort.Sort(functions(c.Functions))
+	return c.Functions
+}
+
+func (c Context) SortedReferences() []property {
+	arr := []property{}
+	for _, v := range c.References {
+		arr = append(arr, v)
+	}
+	sort.Sort(propertiesByLiteral(arr))
+	return arr
+}
+
+func (c Struct) SortedProperties() []property {
+	sort.Sort(propertiesByName(c.Properties))
+	return c.Properties
 }
 
 func (f *Function) RenderSignature() string {
@@ -347,9 +371,6 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 		refName = rname
 	} else {
 		refName = ToCamelCase(true, pname, name)
-		if p, ok := ctx.References[refName]; ok {
-			return p
-		}
 	}
 
 	p := property{Name: ToCamelCase(true, name), SourceName: name}
@@ -426,6 +447,22 @@ func (ctx *Context) getResponses(rs map[string]*Response, opID string) []Param {
 
 func (ot OperationType) String() string {
 	return operationTypeValues[ot]
+}
+
+func (v functions) Len() int           { return len(v) }
+func (v functions) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
+func (v functions) Less(i, j int) bool { return v[i].Name < v[j].Name }
+
+func (v propertiesByLiteral) Len() int      { return len(v) }
+func (v propertiesByLiteral) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v propertiesByLiteral) Less(i, j int) bool {
+	return v[i].Reference.RenderLiteral() < v[j].Reference.RenderLiteral()
+}
+
+func (v propertiesByName) Len() int      { return len(v) }
+func (v propertiesByName) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
+func (v propertiesByName) Less(i, j int) bool {
+	return v[i].Name < v[j].Name
 }
 
 func ToCamelCase(upper bool, names ...string) (out string) {
