@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"text/template"
 )
@@ -14,11 +15,11 @@ const (
 
 package {{.PackageName}}
 type (
-	{{ range $r := .References }}
+	{{ range $r := $.SortedReferences }}
 		{{$r.Reference.RenderDefinition}}
 	{{ end }}
 )
-{{ range $r := .References }}
+{{ range $r := $.SortedReferences }}
 func (r *{{$r.Reference.Name}}) Validate() (bool, error) {
 	return govalidator.ValidateStruct(r)
 }
@@ -26,7 +27,7 @@ func (r *{{$r.Reference.Name}}) Validate() (bool, error) {
 `
 )
 
-func renderDTO(s *Swagger, pn string) {
+func renderDTO(s *Swagger, pn, dest string) {
 	tmpl, err := template.New("dto").Parse(DTOTemplate)
 	if err != nil {
 		os.Stderr.WriteString("Parse tmpl error: " + err.Error())
@@ -95,7 +96,16 @@ func renderDTO(s *Swagger, pn string) {
 		}
 	}
 
-	err = tmpl.Execute(os.Stdout, c)
+	var wr io.Writer = os.Stdout
+	if dest != "" {
+		f, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			os.Stderr.WriteString("Cann't open destination file: " + err.Error())
+			os.Exit(3)
+		}
+		wr = f
+	}
+	err = tmpl.Execute(wr, c)
 	if err != nil {
 		os.Stderr.WriteString("Execute tmpl error: " + err.Error())
 		os.Exit(2)

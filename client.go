@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"text/template"
 )
@@ -20,7 +21,7 @@ var _ {{ $iName }} = new({{ $cName }})
 
 type (
     {{ $iName }} interface {
-		{{- range $f := .Functions }}
+		{{- range $f := $.SortedFunctions }}
 			{{$f.RenderSignature}}
 		{{- end -}}
     }
@@ -30,7 +31,7 @@ type (
         HTTP *http.Client
     }
 
-	{{ range $r := .References }}
+	{{ range $r := $.SortedReferences }}
 		{{$r.Reference.RenderDefinition}}
 	{{ end }}
 )
@@ -46,7 +47,7 @@ func New{{ $cName }} (host string) (*{{ $cName }}, error) {
 	}, nil
 }
 
-{{- range $f := .Functions }}
+{{- range $f := $.SortedFunctions }}
 func (c *{{ $cName }}) {{$f.RenderSignature}} {
 	{{- $f.RenderBody -}}
 }
@@ -75,7 +76,7 @@ func (c *{{ $cName }}) sendRequest(res interface{}, request *http.Request) (*htt
 
 `
 
-func renderClient(s *Swagger, pn string) {
+func renderClient(s *Swagger, pn, dest string) {
 	tmpl, err := template.New("client").Funcs(getFuncMap()).Parse(ClientTemplate)
 	if err != nil {
 		os.Stderr.WriteString("Parse tmpl error: " + err.Error())
@@ -155,7 +156,16 @@ func renderClient(s *Swagger, pn string) {
 		}
 	}
 
-	err = tmpl.Execute(os.Stdout, c)
+	var wr io.Writer = os.Stdout
+	if dest != "" {
+		f, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			os.Stderr.WriteString("Cann't open destination file: " + err.Error())
+			os.Exit(3)
+		}
+		wr = f
+	}
+	err = tmpl.Execute(wr, c)
 	if err != nil {
 		os.Stderr.WriteString("Execute tmpl error: " + err.Error())
 		os.Exit(2)
