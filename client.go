@@ -158,7 +158,7 @@ func renderClient(s *Swagger, pn, dest string) {
 
 	var wr io.Writer = os.Stdout
 	if dest != "" {
-		f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE, 0644)
+		f, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			os.Stderr.WriteString("Cann't open destination file: " + err.Error())
 			os.Exit(3)
