@@ -123,6 +123,16 @@ const (
 		return
 	}
 `
+	extractBoolTemplate = `
+	{{$.Name}}, err = strconv.ParseBool(value)
+	if err != nil {
+		err = &InvalidParameterTypeError{
+			field:"{{$.Field}}",
+			original: err,
+		}
+		return
+	}
+`
 	extractSliceTemplate  = ``
 	extractDictTemplate   = ``
 	extractStructTemplate = ``
@@ -200,6 +210,7 @@ type String struct {
 
 type Integer struct{}
 type Number struct{}
+type Bool struct{}
 
 type property struct {
 	Name       string
@@ -233,7 +244,6 @@ func renderTemplate(tname, t string, i interface{}) string {
 	}
 
 	return buf.String()
-
 }
 
 func (c Context) SortedFunctions() []Function {
@@ -351,6 +361,18 @@ func (n *Number) RenderDefinition(isAbbreviate bool) string { return "" }
 func (n *Number) RenderExtraction(vn, on string) string {
 	return renderTemplate(
 		"float", extractFloatTemplate,
+		struct {
+			Name  string
+			Field string
+		}{vn, on})
+}
+
+func (b *Bool) RenderLiteral() string                     { return "bool" }
+func (b *Bool) RenderName(isAbbreviate bool) string       { return "bool" }
+func (b *Bool) RenderDefinition(isAbbreviate bool) string { return "" }
+func (b *Bool) RenderExtraction(vn, on string) string {
+	return renderTemplate(
+		"bool", extractBoolTemplate,
 		struct {
 			Name  string
 			Field string
@@ -502,6 +524,8 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname, descPname st
 		}
 	case "number":
 		p.Reference = &Number{}
+	case "boolean":
+		p.Reference = &Bool{}
 	default:
 		log.Fatalf("unsupported type %s", schema.Type)
 	}
