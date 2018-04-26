@@ -8,6 +8,8 @@ import (
 )
 
 var spec, packageName, destination string
+var isAbbreviate bool
+
 var parseCmd = &cobra.Command{
 	Use:   "parse",
 	Short: "parse openapi spec and prints swagger. Need for debug stuff",
@@ -29,7 +31,7 @@ var clientCmd = &cobra.Command{
 		if packageName == "" {
 			packageName = "client"
 		}
-		renderClient(s, packageName, destination)
+		renderClient(s, packageName, destination, isAbbreviate)
 	},
 }
 
@@ -41,7 +43,7 @@ var dtoCmd = &cobra.Command{
 		if packageName == "" {
 			packageName = "dto"
 		}
-		renderDTO(s, packageName, destination)
+		renderDTO(s, packageName, destination, isAbbreviate)
 	},
 }
 
@@ -52,6 +54,7 @@ func main() {
 	genCmd.AddCommand(clientCmd, dtoCmd)
 	genCmd.PersistentFlags().StringVarP(&packageName, "package_name", "n", "", "name for generated package")
 	genCmd.PersistentFlags().StringVarP(&destination, "destination", "d", "", "destination for generated package")
+	genCmd.PersistentFlags().BoolVarP(&isAbbreviate, "abbreviate", "a", false, "abbreviate the names of generated structures")
 	rootCmd.Execute()
 }
 

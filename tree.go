@@ -10,21 +10,28 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 )
 
 const (
 	structTemplate = `
-	{{- $.Name }} struct {
-		{{ range $p :=  $.SortedProperties }}
-			{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
+	{{- if $.IsAbbreviate}} 
+		//{{ $.P.Desc }}
+		{{ $.P.AbbrName }} 
+	{{- else -}} 
+		{{ $.P.Name -}} 
+	{{ end }} struct {
+		{{ range $p :=  $.P.SortedProperties }}
+			{{- $p.Name }} {{ $p.Reference.RenderName $.IsAbbreviate}} {{($.P.RenderTags $p)}}
 		{{ end }}
-	}`
-	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName}}`
-	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName}}`
+	}
+	`
+	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName false}}`
+	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName false}}`
 	signatureTemplate = `{{$.Name}} ( res interface{},
 	{{- range $i, $p := $.Input }}
 		{{- if eq $p.In "body"}} body {{ else }} {{ $p.Property.Name }} {{ end -}}	
-		{{ $p.Property.Reference.RenderName }} {{- if lt (inc $i) (len $.Input) -}}, {{- end -}}
+		{{ $p.Property.Reference.RenderName false}} {{- if lt (inc $i) (len $.Input) -}}, {{- end -}}
 	{{- end -}}
 	)(*http.Response, error)`
 	funcBodyTemplate = `
@@ -142,17 +149,18 @@ var operationTypeValues = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
 type OperationType int
 
 type Reference interface {
-	RenderDefinition() string
+	RenderDefinition(isAbbreviate bool) string
 	RenderLiteral() string
-	RenderName() string
+	RenderName(isAbbreviate bool) string
 	RenderExtraction(varName, oName string) string
 }
 
 type Context struct {
-	PackageName string
-	Info        Info
-	References  map[string]property
-	Functions   []Function
+	PackageName  string
+	Info         Info
+	IsAbbreviate bool
+	References   map[string]property
+	Functions    []Function
 }
 type Function struct {
 	Name          string
@@ -171,6 +179,8 @@ type Param struct {
 type Struct struct {
 	Properties []property
 	Name       string
+	AbbrName   string
+	Desc       string
 }
 
 type Slice struct {
@@ -314,18 +324,18 @@ func (p *Param) RenderQueryParam() string {
 	return renderTemplate("qParam", setQueryParamTemplate, p)
 }
 
-func (s *String) RenderLiteral() string    { return "string" }
-func (s *String) RenderName() string       { return "string" }
-func (s *String) RenderDefinition() string { return "" }
+func (s *String) RenderLiteral() string                     { return "string" }
+func (s *String) RenderName(isAbbreviate bool) string       { return "string" }
+func (s *String) RenderDefinition(isAbbreviate bool) string { return "" }
 func (s *String) RenderExtraction(vn, on string) string {
 	return fmt.Sprintf("%s = value", vn)
 }
 func (s *String) RenderValues() []string { return s.Values }
 func (s *String) RenderDefault() string  { return s.Default }
 
-func (i *Integer) RenderLiteral() string    { return "int64" }
-func (i *Integer) RenderName() string       { return "int64" }
-func (i *Integer) RenderDefinition() string { return "" }
+func (i *Integer) RenderLiteral() string                     { return "int64" }
+func (i *Integer) RenderName(isAbbreviate bool) string       { return "int64" }
+func (i *Integer) RenderDefinition(isAbbreviate bool) string { return "" }
 func (i *Integer) RenderExtraction(vn, on string) string {
 	return renderTemplate(
 		"int", extractIntTemplate,
@@ -335,9 +345,9 @@ func (i *Integer) RenderExtraction(vn, on string) string {
 		}{vn, on})
 }
 
-func (n *Number) RenderLiteral() string    { return "float64" }
-func (n *Number) RenderName() string       { return "float64" }
-func (n *Number) RenderDefinition() string { return "" }
+func (n *Number) RenderLiteral() string                     { return "float64" }
+func (n *Number) RenderName(isAbbreviate bool) string       { return "float64" }
+func (n *Number) RenderDefinition(isAbbreviate bool) string { return "" }
 func (n *Number) RenderExtraction(vn, on string) string {
 	return renderTemplate(
 		"float", extractFloatTemplate,
@@ -347,23 +357,44 @@ func (n *Number) RenderExtraction(vn, on string) string {
 		}{vn, on})
 }
 
-func (s *Slice) RenderLiteral() string    { return s.Name }
-func (s *Slice) RenderName() string       { return "[]" + s.ItemsType.Reference.RenderName() }
-func (s *Slice) RenderDefinition() string { return renderTemplate("slice", arrayTemplate, s) }
+func (s *Slice) RenderLiteral() string { return s.Name }
+func (s *Slice) RenderName(isAbbreviate bool) string {
+	return "[]" + s.ItemsType.Reference.RenderName(isAbbreviate)
+}
+func (s *Slice) RenderDefinition(isAbbreviate bool) string {
+	return renderTemplate("slice", arrayTemplate, s)
+}
 func (s *Slice) RenderExtraction(vn, on string) string {
 	return renderTemplate("sliceExtract", extractSliceTemplate, s)
 }
 
-func (s *Dictionary) RenderLiteral() string    { return s.Name }
-func (s *Dictionary) RenderName() string       { return "map[string]" + s.ItemsType.Reference.RenderName() }
-func (s *Dictionary) RenderDefinition() string { return renderTemplate("dict", dictTemplate, s) }
+func (s *Dictionary) RenderLiteral() string { return s.Name }
+func (s *Dictionary) RenderName(isAbbreviate bool) string {
+	return "map[string]" + s.ItemsType.Reference.RenderName(isAbbreviate)
+}
+func (s *Dictionary) RenderDefinition(isAbbreviate bool) string {
+	return renderTemplate("dict", dictTemplate, s)
+}
 func (s *Dictionary) RenderExtraction(vn, on string) string {
 	return renderTemplate("dictExtract", extractDictTemplate, s)
 }
 
-func (s *Struct) RenderLiteral() string    { return s.Name }
-func (s *Struct) RenderName() string       { return s.Name }
-func (s *Struct) RenderDefinition() string { return renderTemplate("struct", structTemplate, s) }
+func (s *Struct) RenderLiteral() string { return s.Name }
+func (s *Struct) RenderName(isAbbreviate bool) string {
+	if isAbbreviate {
+		return s.AbbrName
+	}
+	return s.Name
+}
+func (s *Struct) RenderDefinition(isAbbreviate bool) string {
+	return renderTemplate(
+		"struct",
+		structTemplate,
+		struct {
+			IsAbbreviate bool
+			P            *Struct
+		}{isAbbreviate, s})
+}
 func (s *Struct) RenderExtraction(vn, on string) string {
 	return renderTemplate("structExtract", extractStructTemplate, s)
 }
@@ -409,22 +440,39 @@ func (p *Param) RenderExtraction() string {
 	return renderTemplate("paramExtract", paramTemplate, p)
 }
 
-func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) property {
+func (ctx *Context) setProperty(schema *Schema, name, pname, rname, descPname string) property {
 
-	var refName string
+	var refName, desc string
+
 	if rname != "" {
 		refName = rname
+		desc = rname
 	} else {
 		refName = ToCamelCase(true, pname, name)
+		if descPname == "" {
+			desc = refName
+		} else {
+			desc = fmt.Sprintf("%s.%s", descPname, ToCamelCase(true, name))
+		}
 	}
 
-	p := property{Name: ToCamelCase(true, name), SourceName: name, Enum: schema.Enum}
+	p := property{
+		Name:       ToCamelCase(true, name),
+		SourceName: name,
+		Enum:       schema.Enum,
+	}
+
 	switch schema.Type {
 	case "object":
 		if schema.AdditionalProperties == nil {
-			ps := &Struct{Name: refName, Properties: []property{}}
+			ps := &Struct{
+				Name:       refName,
+				Properties: []property{},
+				AbbrName:   ToAbbreviate(desc),
+				Desc:       desc,
+			}
 			for n, s := range schema.Properties {
-				p := ctx.setProperty(s, n, refName, getRefName(s.Ref))
+				p := ctx.setProperty(s, n, refName, getRefName(s.Ref), desc)
 				for _, a := range schema.Required {
 					if n == a {
 						p.Required = true
@@ -437,7 +485,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 		} else {
 			p.Reference = &Dictionary{
 				Name:      refName,
-				ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName, getRefName(schema.AdditionalProperties.Ref)),
+				ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName, getRefName(schema.AdditionalProperties.Ref), desc),
 			}
 		}
 	case "string":
@@ -450,7 +498,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 	case "array":
 		p.Reference = &Slice{
 			Name:      getRefName(schema.Items.Ref),
-			ItemsType: ctx.setProperty(schema.Items, "", refName, getRefName(schema.Items.Ref)),
+			ItemsType: ctx.setProperty(schema.Items, "", refName, getRefName(schema.Items.Ref), desc),
 		}
 	case "number":
 		p.Reference = &Number{}
@@ -463,12 +511,12 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 func (ctx *Context) getParams(ps []*Parameter, rb *RequestBody, opID string) []Param {
 	inputs := []Param{}
 	for _, p := range ps {
-		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID, getRefName(p.Ref))))
+		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID, getRefName(p.Ref), ""))) //TODO:
 	}
 	if rb != nil {
 		for k, mt := range rb.Content {
 			if rb.Check(k) {
-				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID, getRefName(rb.Ref))))
+				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID, getRefName(rb.Ref), ""))) //TODO:
 			}
 		}
 	}
@@ -485,7 +533,7 @@ func (ctx *Context) getResponses(rs map[string]*Response, opID string) []Param {
 		if code >= http.StatusOK && code < http.StatusBadRequest {
 			for k, mt := range response.Content {
 				if response.Check(k) {
-					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID, "")))
+					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID, "", ""))) //TODO:
 				}
 			}
 		}
@@ -544,4 +592,31 @@ func ToCamelCase(upper bool, names ...string) (out string) {
 		}
 	}
 	return
+}
+
+func ToAbbreviate(name string) string {
+	return abbreviate(name)
+}
+
+func abbreviate(s string) string {
+	abbr := make([]byte, 0, len(s))
+	lex := make([]byte, 0, len(s))
+
+	f := true
+	for _, ch := range s {
+		if ch == '.' {
+			f = true
+			continue
+		}
+		if f {
+			abbr = append(abbr, byte(unicode.ToUpper(ch)))
+			lex = make([]byte, 0, len(s))
+			f = false
+		} else {
+			lex = append(lex, byte(ch))
+		}
+	}
+	abbr = append(abbr, lex...)
+
+	return string(abbr)
 }
