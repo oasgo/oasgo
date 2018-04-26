@@ -20,9 +20,9 @@ type (
 	{{ end }}
 )
 {{ range $r := $.SortedReferences }}
-func (r *{{$r.Reference.Name}}) Validate() (bool, error) {
-	return govalidator.ValidateStruct(r)
-}
+	func (r *{{$r.Reference.Name}}) Validate() (bool, error) {
+		{{ $r.Reference.RenderValidate "" }}
+	}
 {{ end }}
 `
 )

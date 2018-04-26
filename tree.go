@@ -119,6 +119,14 @@ const (
 	extractSliceTemplate  = ``
 	extractDictTemplate   = ``
 	extractStructTemplate = ``
+
+	structValidateTemplate = `
+		{{- if eq $.Name "" -}}
+			return govalidator.ValidateStruct(r)
+		{{- else -}}
+			return r.{{$.Name}}.Validate()
+		{{- end -}}
+	`
 )
 
 const (
@@ -175,7 +183,11 @@ type Dictionary struct {
 	Name      string
 }
 
-type String struct{}
+type String struct {
+	Values  []string
+	Default string
+}
+
 type Integer struct{}
 type Number struct{}
 
@@ -184,6 +196,7 @@ type property struct {
 	SourceName string
 	Reference  Reference
 	Required   bool
+	Enum       []string
 }
 
 type functions []Function
@@ -307,6 +320,8 @@ func (s *String) RenderDefinition() string { return "" }
 func (s *String) RenderExtraction(vn, on string) string {
 	return fmt.Sprintf("%s = value", vn)
 }
+func (s *String) RenderValues() []string { return s.Values }
+func (s *String) RenderDefault() string  { return s.Default }
 
 func (i *Integer) RenderLiteral() string    { return "int64" }
 func (i *Integer) RenderName() string       { return "int64" }
@@ -352,11 +367,41 @@ func (s *Struct) RenderDefinition() string { return renderTemplate("struct", str
 func (s *Struct) RenderExtraction(vn, on string) string {
 	return renderTemplate("structExtract", extractStructTemplate, s)
 }
+
+func (s *Struct) RenderValidate(name string) string {
+	return renderTemplate(
+		"structValidate",
+		structValidateTemplate,
+		struct {
+			Name string
+			P    *Struct
+		}{name, s})
+}
+
 func (s *Struct) RenderTags(p property) string {
 	tags := []string{fmt.Sprintf("json:\"%s\"", p.SourceName)}
-	if p.Required {
-		tags = append(tags, "valid:\"required\"")
+
+	if p.Required || len(p.Enum) > 0 {
+		requiredTag, enumTag := "", ""
+		if p.Required {
+			requiredTag += "required"
+		}
+		if len(p.Enum) > 0 {
+			if requiredTag != "" {
+				enumTag += ","
+			}
+			enumTag += "in("
+			for i, el := range p.Enum {
+				enumTag += el
+				if i < len(p.Enum)-1 {
+					enumTag += "|"
+				}
+			}
+			enumTag += ")"
+		}
+		tags = append(tags, fmt.Sprintf("valid:\"%s%s\"", requiredTag, enumTag))
 	}
+
 	return fmt.Sprintf("`%s`", strings.Join(tags, " "))
 }
 
@@ -373,7 +418,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 		refName = ToCamelCase(true, pname, name)
 	}
 
-	p := property{Name: ToCamelCase(true, name), SourceName: name}
+	p := property{Name: ToCamelCase(true, name), SourceName: name, Enum: schema.Enum}
 	switch schema.Type {
 	case "object":
 		if schema.AdditionalProperties == nil {
@@ -396,7 +441,10 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 			}
 		}
 	case "string":
-		p.Reference = &String{}
+		p.Reference = &String{
+			Default: schema.Default,
+			Values:  schema.Enum,
+		}
 	case "integer":
 		p.Reference = &Integer{}
 	case "array":
