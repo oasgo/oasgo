@@ -163,6 +163,7 @@ type Reference interface {
 	RenderLiteral() string
 	RenderName(isAbbreviate bool) string
 	RenderExtraction(varName, oName string) string
+	RenderFormat() string
 }
 
 type Context struct {
@@ -206,6 +207,7 @@ type Dictionary struct {
 type String struct {
 	Values  []string
 	Default string
+	Format  string
 }
 
 type Integer struct{}
@@ -340,6 +342,7 @@ func (s *String) RenderDefinition(isAbbreviate bool) string { return "" }
 func (s *String) RenderExtraction(vn, on string) string {
 	return fmt.Sprintf("%s = value", vn)
 }
+func (s *String) RenderFormat() string   { return s.Format }
 func (s *String) RenderValues() []string { return s.Values }
 func (s *String) RenderDefault() string  { return s.Default }
 
@@ -354,6 +357,7 @@ func (i *Integer) RenderExtraction(vn, on string) string {
 			Field string
 		}{vn, on})
 }
+func (i *Integer) RenderFormat() string { return "" }
 
 func (n *Number) RenderLiteral() string                     { return "float64" }
 func (n *Number) RenderName(isAbbreviate bool) string       { return "float64" }
@@ -366,6 +370,7 @@ func (n *Number) RenderExtraction(vn, on string) string {
 			Field string
 		}{vn, on})
 }
+func (n *Number) RenderFormat() string { return "" }
 
 func (b *Bool) RenderLiteral() string                     { return "bool" }
 func (b *Bool) RenderName(isAbbreviate bool) string       { return "bool" }
@@ -378,6 +383,7 @@ func (b *Bool) RenderExtraction(vn, on string) string {
 			Field string
 		}{vn, on})
 }
+func (b *Bool) RenderFormat() string { return "" }
 
 func (s *Slice) RenderLiteral() string { return s.Name }
 func (s *Slice) RenderName(isAbbreviate bool) string {
@@ -389,6 +395,7 @@ func (s *Slice) RenderDefinition(isAbbreviate bool) string {
 func (s *Slice) RenderExtraction(vn, on string) string {
 	return renderTemplate("sliceExtract", extractSliceTemplate, s)
 }
+func (s *Slice) RenderFormat() string { return "" }
 
 func (s *Dictionary) RenderLiteral() string { return s.Name }
 func (s *Dictionary) RenderName(isAbbreviate bool) string {
@@ -400,6 +407,7 @@ func (s *Dictionary) RenderDefinition(isAbbreviate bool) string {
 func (s *Dictionary) RenderExtraction(vn, on string) string {
 	return renderTemplate("dictExtract", extractDictTemplate, s)
 }
+func (s *Dictionary) RenderFormat() string { return "" }
 
 func (s *Struct) RenderLiteral() string { return s.Name }
 func (s *Struct) RenderName(isAbbreviate bool) string {
@@ -430,29 +438,38 @@ func (s *Struct) RenderValidate(name string) string {
 			P    *Struct
 		}{name, s})
 }
+func (s *Struct) RenderFormat() string { return "" }
 
 func (s *Struct) RenderTags(p property) string {
 	tags := []string{fmt.Sprintf("json:\"%s\"", p.SourceName)}
 
 	if p.Required || len(p.Enum) > 0 {
-		requiredTag, enumTag := "", ""
+		validateTags := ""
 		if p.Required {
-			requiredTag += "required"
+			validateTags += "required"
 		}
 		if len(p.Enum) > 0 {
-			if requiredTag != "" {
-				enumTag += ","
+			if validateTags != "" {
+				validateTags += ","
 			}
-			enumTag += "in("
+			validateTags += "in("
 			for i, el := range p.Enum {
-				enumTag += el
+				validateTags += el
 				if i < len(p.Enum)-1 {
-					enumTag += "|"
+					validateTags += "|"
 				}
 			}
-			enumTag += ")"
+			validateTags += ")"
 		}
-		tags = append(tags, fmt.Sprintf("valid:\"%s%s\"", requiredTag, enumTag))
+		switch p.Reference.RenderFormat() {
+		case "date-time", "date":
+			if validateTags != "" {
+				validateTags += ","
+			}
+			validateTags += "rfc3339"
+		}
+
+		tags = append(tags, fmt.Sprintf("valid:\"%s\"", validateTags))
 	}
 
 	return fmt.Sprintf("`%s`", strings.Join(tags, " "))
@@ -514,6 +531,7 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname, descPname st
 		p.Reference = &String{
 			Default: schema.Default,
 			Values:  schema.Enum,
+			Format:  schema.Format,
 		}
 	case "integer":
 		p.Reference = &Integer{}
