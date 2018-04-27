@@ -440,39 +440,58 @@ func (s *Struct) RenderValidate(name string) string {
 }
 func (s *Struct) RenderFormat() string { return "" }
 
-func (s *Struct) RenderTags(p property) string {
-	tags := []string{fmt.Sprintf("json:\"%s\"", p.SourceName)}
+func buildJsonTag(p property) string {
+	jsonTag := ""
 
-	if p.Required || len(p.Enum) > 0 {
-		validateTags := ""
-		if p.Required {
-			validateTags += "required"
-		}
-		if len(p.Enum) > 0 {
-			if validateTags != "" {
-				validateTags += ","
-			}
-			validateTags += "in("
-			for i, el := range p.Enum {
-				validateTags += el
-				if i < len(p.Enum)-1 {
-					validateTags += "|"
-				}
-			}
-			validateTags += ")"
-		}
-		switch p.Reference.RenderFormat() {
-		case "date-time", "date":
-			if validateTags != "" {
-				validateTags += ","
-			}
-			validateTags += "rfc3339"
-		}
-
-		tags = append(tags, fmt.Sprintf("valid:\"%s\"", validateTags))
+	if p.SourceName != "" {
+		jsonTag += p.SourceName
+	}
+	if !p.Required {
+		jsonTag += ",omitempty"
 	}
 
-	return fmt.Sprintf("`%s`", strings.Join(tags, " "))
+	if jsonTag == "" {
+		return jsonTag
+	}
+	return fmt.Sprintf("json:\"%s\"", jsonTag)
+}
+
+func buildValidTag(p property) string {
+	validateTags := ""
+
+	if p.Required {
+		validateTags += "required"
+	}
+	if len(p.Enum) > 0 {
+		if validateTags != "" {
+			validateTags += ","
+		}
+		validateTags += "in("
+		for i, el := range p.Enum {
+			validateTags += el
+			if i < len(p.Enum)-1 {
+				validateTags += "|"
+			}
+		}
+		validateTags += ")"
+	}
+	switch p.Reference.RenderFormat() {
+	case "date-time", "date":
+		if validateTags != "" {
+			validateTags += ","
+		}
+		validateTags += "rfc3339"
+	}
+
+	if validateTags == "" {
+		return validateTags
+	}
+	return fmt.Sprintf("valid:\"%s\"", validateTags)
+}
+
+func (s *Struct) RenderTags(p property) string {
+	tags := []string{buildJsonTag(p), buildValidTag(p)}
+	return fmt.Sprintf("`%s`", strings.Trim(strings.Join(tags, " "), " "))
 }
 
 func (p *Param) RenderExtraction() string {
