@@ -133,6 +133,16 @@ const (
 		return
 	}
 `
+	extractDatetimeTemplate = `
+	{{$.Name}}, err = time.Parse({{$.Format}}, value)
+	if err != nil {
+		err = &InvalidParameterTypeError{
+			field:"{{$.Field}}",
+			original: err,
+		}
+		return
+	}
+`
 	extractSliceTemplate  = ``
 	extractDictTemplate   = ``
 	extractStructTemplate = ``
@@ -213,6 +223,10 @@ type String struct {
 type Integer struct{}
 type Number struct{}
 type Bool struct{}
+
+type Datetime struct {
+	Format string
+}
 
 type property struct {
 	Name       string
@@ -345,6 +359,20 @@ func (s *String) RenderExtraction(vn, on string) string {
 func (s *String) RenderFormat() string   { return s.Format }
 func (s *String) RenderValues() []string { return s.Values }
 func (s *String) RenderDefault() string  { return s.Default }
+
+func (dt *Datetime) RenderLiteral() string                     { return "time.Time" }
+func (dt *Datetime) RenderName(isAbbreviate bool) string       { return "time.Time" }
+func (dt *Datetime) RenderDefinition(isAbbreviate bool) string { return "" }
+func (dt *Datetime) RenderExtraction(vn, on string) string {
+	return renderTemplate(
+		"datetime", extractDatetimeTemplate,
+		struct {
+			Name   string
+			Field  string
+			Format string
+		}{vn, on, dt.Format})
+}
+func (dt *Datetime) RenderFormat() string { return dt.Format }
 
 func (i *Integer) RenderLiteral() string                     { return "int64" }
 func (i *Integer) RenderName(isAbbreviate bool) string       { return "int64" }
@@ -547,10 +575,17 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname, descPname st
 			}
 		}
 	case "string":
-		p.Reference = &String{
-			Default: schema.Default,
-			Values:  schema.Enum,
-			Format:  schema.Format,
+		switch schema.Format {
+		case "date", "date-time":
+			p.Reference = &Datetime{
+				Format: schema.Format,
+			}
+		default:
+			p.Reference = &String{
+				Default: schema.Default,
+				Values:  schema.Enum,
+				Format:  schema.Format,
+			}
 		}
 	case "integer":
 		p.Reference = &Integer{}
