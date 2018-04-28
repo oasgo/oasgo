@@ -10,21 +10,28 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 )
 
 const (
 	structTemplate = `
-	{{- $.Name }} struct {
-		{{ range $p :=  $.SortedProperties }}
-			{{- $p.Name }} {{ $p.Reference.RenderName }} {{($.RenderTags $p)}}
+	{{- if $.IsAbbreviate}} 
+		//{{ $.P.Desc }}
+		{{ $.P.AbbrName }} 
+	{{- else -}} 
+		{{ $.P.Name -}} 
+	{{ end }} struct {
+		{{ range $p :=  $.P.SortedProperties }}
+			{{- $p.Name }} {{ $p.Reference.RenderName $.IsAbbreviate}} {{($.P.RenderTags $p)}}
 		{{ end }}
-	}`
-	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName}}`
-	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName}}`
+	}
+	`
+	arrayTemplate     = `{{$.Name}} []{{$.ItemsType.Reference.RenderName false}}`
+	dictTemplate      = `{{$.Name}} map[string]{{$.ItemsType.Reference.RenderName false}}`
 	signatureTemplate = `{{$.Name}} ( res interface{},
 	{{- range $i, $p := $.Input }}
 		{{- if eq $p.In "body"}} body {{ else }} {{ $p.Property.Name }} {{ end -}}	
-		{{ $p.Property.Reference.RenderName }} {{- if lt (inc $i) (len $.Input) -}}, {{- end -}}
+		{{ $p.Property.Reference.RenderName false}} {{- if lt (inc $i) (len $.Input) -}}, {{- end -}}
 	{{- end -}}
 	)(*http.Response, error)`
 	funcBodyTemplate = `
@@ -116,9 +123,37 @@ const (
 		return
 	}
 `
+	extractBoolTemplate = `
+	{{$.Name}}, err = strconv.ParseBool(value)
+	if err != nil {
+		err = &InvalidParameterTypeError{
+			field:"{{$.Field}}",
+			original: err,
+		}
+		return
+	}
+`
+	extractDatetimeTemplate = `
+	{{$.Name}}, err = time.Parse({{$.Format}}, value)
+	if err != nil {
+		err = &InvalidParameterTypeError{
+			field:"{{$.Field}}",
+			original: err,
+		}
+		return
+	}
+`
 	extractSliceTemplate  = ``
 	extractDictTemplate   = ``
 	extractStructTemplate = ``
+
+	structValidateTemplate = `
+		{{- if eq $.Name "" -}}
+			return govalidator.ValidateStruct(r)
+		{{- else -}}
+			return r.{{$.Name}}.Validate()
+		{{- end -}}
+	`
 )
 
 const (
@@ -134,17 +169,19 @@ var operationTypeValues = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
 type OperationType int
 
 type Reference interface {
-	RenderDefinition() string
+	RenderDefinition(isAbbreviate bool) string
 	RenderLiteral() string
-	RenderName() string
+	RenderName(isAbbreviate bool) string
 	RenderExtraction(varName, oName string) string
+	RenderFormat() string
 }
 
 type Context struct {
-	PackageName string
-	Info        Info
-	References  map[string]property
-	Functions   []Function
+	PackageName  string
+	Info         Info
+	IsAbbreviate bool
+	References   map[string]property
+	Functions    []Function
 }
 type Function struct {
 	Name          string
@@ -163,6 +200,8 @@ type Param struct {
 type Struct struct {
 	Properties []property
 	Name       string
+	AbbrName   string
+	Desc       string
 }
 
 type Slice struct {
@@ -175,15 +214,26 @@ type Dictionary struct {
 	Name      string
 }
 
-type String struct{}
+type String struct {
+	Values  []string
+	Default string
+	Format  string
+}
+
 type Integer struct{}
 type Number struct{}
+type Bool struct{}
+
+type Datetime struct {
+	Format string
+}
 
 type property struct {
 	Name       string
 	SourceName string
 	Reference  Reference
 	Required   bool
+	Enum       []string
 }
 
 type functions []Function
@@ -210,7 +260,6 @@ func renderTemplate(tname, t string, i interface{}) string {
 	}
 
 	return buf.String()
-
 }
 
 func (c Context) SortedFunctions() []Function {
@@ -301,16 +350,33 @@ func (p *Param) RenderQueryParam() string {
 	return renderTemplate("qParam", setQueryParamTemplate, p)
 }
 
-func (s *String) RenderLiteral() string    { return "string" }
-func (s *String) RenderName() string       { return "string" }
-func (s *String) RenderDefinition() string { return "" }
+func (s *String) RenderLiteral() string                     { return "string" }
+func (s *String) RenderName(isAbbreviate bool) string       { return "string" }
+func (s *String) RenderDefinition(isAbbreviate bool) string { return "" }
 func (s *String) RenderExtraction(vn, on string) string {
 	return fmt.Sprintf("%s = value", vn)
 }
+func (s *String) RenderFormat() string   { return s.Format }
+func (s *String) RenderValues() []string { return s.Values }
+func (s *String) RenderDefault() string  { return s.Default }
 
-func (i *Integer) RenderLiteral() string    { return "int64" }
-func (i *Integer) RenderName() string       { return "int64" }
-func (i *Integer) RenderDefinition() string { return "" }
+func (dt *Datetime) RenderLiteral() string                     { return "time.Time" }
+func (dt *Datetime) RenderName(isAbbreviate bool) string       { return "time.Time" }
+func (dt *Datetime) RenderDefinition(isAbbreviate bool) string { return "" }
+func (dt *Datetime) RenderExtraction(vn, on string) string {
+	return renderTemplate(
+		"datetime", extractDatetimeTemplate,
+		struct {
+			Name   string
+			Field  string
+			Format string
+		}{vn, on, dt.Format})
+}
+func (dt *Datetime) RenderFormat() string { return dt.Format }
+
+func (i *Integer) RenderLiteral() string                     { return "int64" }
+func (i *Integer) RenderName(isAbbreviate bool) string       { return "int64" }
+func (i *Integer) RenderDefinition(isAbbreviate bool) string { return "" }
 func (i *Integer) RenderExtraction(vn, on string) string {
 	return renderTemplate(
 		"int", extractIntTemplate,
@@ -319,10 +385,11 @@ func (i *Integer) RenderExtraction(vn, on string) string {
 			Field string
 		}{vn, on})
 }
+func (i *Integer) RenderFormat() string { return "" }
 
-func (n *Number) RenderLiteral() string    { return "float64" }
-func (n *Number) RenderName() string       { return "float64" }
-func (n *Number) RenderDefinition() string { return "" }
+func (n *Number) RenderLiteral() string                     { return "float64" }
+func (n *Number) RenderName(isAbbreviate bool) string       { return "float64" }
+func (n *Number) RenderDefinition(isAbbreviate bool) string { return "" }
 func (n *Number) RenderExtraction(vn, on string) string {
 	return renderTemplate(
 		"float", extractFloatTemplate,
@@ -331,55 +398,169 @@ func (n *Number) RenderExtraction(vn, on string) string {
 			Field string
 		}{vn, on})
 }
+func (n *Number) RenderFormat() string { return "" }
 
-func (s *Slice) RenderLiteral() string    { return s.Name }
-func (s *Slice) RenderName() string       { return "[]" + s.ItemsType.Reference.RenderName() }
-func (s *Slice) RenderDefinition() string { return renderTemplate("slice", arrayTemplate, s) }
+func (b *Bool) RenderLiteral() string                     { return "bool" }
+func (b *Bool) RenderName(isAbbreviate bool) string       { return "bool" }
+func (b *Bool) RenderDefinition(isAbbreviate bool) string { return "" }
+func (b *Bool) RenderExtraction(vn, on string) string {
+	return renderTemplate(
+		"bool", extractBoolTemplate,
+		struct {
+			Name  string
+			Field string
+		}{vn, on})
+}
+func (b *Bool) RenderFormat() string { return "" }
+
+func (s *Slice) RenderLiteral() string { return s.Name }
+func (s *Slice) RenderName(isAbbreviate bool) string {
+	return "[]" + s.ItemsType.Reference.RenderName(isAbbreviate)
+}
+func (s *Slice) RenderDefinition(isAbbreviate bool) string {
+	return renderTemplate("slice", arrayTemplate, s)
+}
 func (s *Slice) RenderExtraction(vn, on string) string {
 	return renderTemplate("sliceExtract", extractSliceTemplate, s)
 }
+func (s *Slice) RenderFormat() string { return "" }
 
-func (s *Dictionary) RenderLiteral() string    { return s.Name }
-func (s *Dictionary) RenderName() string       { return "map[string]" + s.ItemsType.Reference.RenderName() }
-func (s *Dictionary) RenderDefinition() string { return renderTemplate("dict", dictTemplate, s) }
+func (s *Dictionary) RenderLiteral() string { return s.Name }
+func (s *Dictionary) RenderName(isAbbreviate bool) string {
+	return "map[string]" + s.ItemsType.Reference.RenderName(isAbbreviate)
+}
+func (s *Dictionary) RenderDefinition(isAbbreviate bool) string {
+	return renderTemplate("dict", dictTemplate, s)
+}
 func (s *Dictionary) RenderExtraction(vn, on string) string {
 	return renderTemplate("dictExtract", extractDictTemplate, s)
 }
+func (s *Dictionary) RenderFormat() string { return "" }
 
-func (s *Struct) RenderLiteral() string    { return s.Name }
-func (s *Struct) RenderName() string       { return s.Name }
-func (s *Struct) RenderDefinition() string { return renderTemplate("struct", structTemplate, s) }
+func (s *Struct) RenderLiteral() string { return s.Name }
+func (s *Struct) RenderName(isAbbreviate bool) string {
+	if isAbbreviate {
+		return s.AbbrName
+	}
+	return s.Name
+}
+func (s *Struct) RenderDefinition(isAbbreviate bool) string {
+	return renderTemplate(
+		"struct",
+		structTemplate,
+		struct {
+			IsAbbreviate bool
+			P            *Struct
+		}{isAbbreviate, s})
+}
 func (s *Struct) RenderExtraction(vn, on string) string {
 	return renderTemplate("structExtract", extractStructTemplate, s)
 }
-func (s *Struct) RenderTags(p property) string {
-	tags := []string{fmt.Sprintf("json:\"%s\"", p.SourceName)}
-	if p.Required {
-		tags = append(tags, "valid:\"required\"")
+
+func (s *Struct) RenderValidate(name string) string {
+	return renderTemplate(
+		"structValidate",
+		structValidateTemplate,
+		struct {
+			Name string
+			P    *Struct
+		}{name, s})
+}
+func (s *Struct) RenderFormat() string { return "" }
+
+func buildJsonTag(p property) string {
+	jsonTag := ""
+
+	if p.SourceName != "" {
+		jsonTag += p.SourceName
 	}
-	return fmt.Sprintf("`%s`", strings.Join(tags, " "))
+	if !p.Required {
+		jsonTag += ",omitempty"
+	}
+
+	if jsonTag == "" {
+		return jsonTag
+	}
+	return fmt.Sprintf("json:\"%s\"", jsonTag)
+}
+
+func buildValidTag(p property) string {
+	validateTags := ""
+
+	if p.Required {
+		validateTags += "required"
+	}
+	if len(p.Enum) > 0 {
+		if validateTags != "" {
+			validateTags += ","
+		}
+		validateTags += "in("
+		for i, el := range p.Enum {
+			validateTags += el
+			if i < len(p.Enum)-1 {
+				validateTags += "|"
+			}
+		}
+		validateTags += ")"
+	}
+
+	//TODO: Disabled, the govalidator does not support type time.Time. Subsequently, you need to add a custom tag.
+	//switch p.Reference.RenderFormat() {
+	//case "date-time", "date":
+	//	if validateTags != "" {
+	//		validateTags += ","
+	//	}
+	//	validateTags += "rfc3339"
+	//}
+
+	if validateTags == "" {
+		return validateTags
+	}
+	return fmt.Sprintf("valid:\"%s\"", validateTags)
+}
+
+func (s *Struct) RenderTags(p property) string {
+	tags := []string{buildJsonTag(p), buildValidTag(p)}
+	return fmt.Sprintf("`%s`", strings.Trim(strings.Join(tags, " "), " "))
 }
 
 func (p *Param) RenderExtraction() string {
 	return renderTemplate("paramExtract", paramTemplate, p)
 }
 
-func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) property {
+func (ctx *Context) setProperty(schema *Schema, name, pname, rname, descPname string) property {
 
-	var refName string
+	var refName, desc string
+
 	if rname != "" {
 		refName = rname
+		desc = rname
 	} else {
 		refName = ToCamelCase(true, pname, name)
+		if descPname == "" {
+			desc = refName
+		} else {
+			desc = fmt.Sprintf("%s.%s", descPname, ToCamelCase(true, name))
+		}
 	}
 
-	p := property{Name: ToCamelCase(true, name), SourceName: name}
+	p := property{
+		Name:       ToCamelCase(true, name),
+		SourceName: name,
+		Enum:       schema.Enum,
+	}
+
 	switch schema.Type {
 	case "object":
 		if schema.AdditionalProperties == nil {
-			ps := &Struct{Name: refName, Properties: []property{}}
+			ps := &Struct{
+				Name:       refName,
+				Properties: []property{},
+				AbbrName:   ToAbbreviate(desc),
+				Desc:       desc,
+			}
 			for n, s := range schema.Properties {
-				p := ctx.setProperty(s, n, refName, getRefName(s.Ref))
+				p := ctx.setProperty(s, n, refName, getRefName(s.Ref), desc)
 				for _, a := range schema.Required {
 					if n == a {
 						p.Required = true
@@ -392,20 +573,33 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 		} else {
 			p.Reference = &Dictionary{
 				Name:      refName,
-				ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName, getRefName(schema.AdditionalProperties.Ref)),
+				ItemsType: ctx.setProperty(schema.AdditionalProperties, "", refName, getRefName(schema.AdditionalProperties.Ref), desc),
 			}
 		}
 	case "string":
-		p.Reference = &String{}
+		switch schema.Format {
+		case "date", "date-time":
+			p.Reference = &Datetime{
+				Format: schema.Format,
+			}
+		default:
+			p.Reference = &String{
+				Default: schema.Default,
+				Values:  schema.Enum,
+				Format:  schema.Format,
+			}
+		}
 	case "integer":
 		p.Reference = &Integer{}
 	case "array":
 		p.Reference = &Slice{
 			Name:      getRefName(schema.Items.Ref),
-			ItemsType: ctx.setProperty(schema.Items, "", refName, getRefName(schema.Items.Ref)),
+			ItemsType: ctx.setProperty(schema.Items, "", refName, getRefName(schema.Items.Ref), desc),
 		}
 	case "number":
 		p.Reference = &Number{}
+	case "boolean":
+		p.Reference = &Bool{}
 	default:
 		log.Fatalf("unsupported type %s", schema.Type)
 	}
@@ -415,12 +609,12 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname string) prope
 func (ctx *Context) getParams(ps []*Parameter, rb *RequestBody, opID string) []Param {
 	inputs := []Param{}
 	for _, p := range ps {
-		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID, getRefName(p.Ref))))
+		inputs = append(inputs, newParam(p.In, p.Required, ctx.setProperty(p.Schema, p.ExternalName, opID, getRefName(p.Ref), ""))) //TODO:
 	}
 	if rb != nil {
 		for k, mt := range rb.Content {
 			if rb.Check(k) {
-				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID, getRefName(rb.Ref))))
+				inputs = append(inputs, newParam("body", rb.Required, ctx.setProperty(mt.Schema, "Request", opID, getRefName(rb.Ref), ""))) //TODO:
 			}
 		}
 	}
@@ -437,7 +631,7 @@ func (ctx *Context) getResponses(rs map[string]*Response, opID string) []Param {
 		if code >= http.StatusOK && code < http.StatusBadRequest {
 			for k, mt := range response.Content {
 				if response.Check(k) {
-					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID, "")))
+					inputs = append(inputs, newParam(c, true, ctx.setProperty(mt.Schema, "Response", opID, "", ""))) //TODO:
 				}
 			}
 		}
@@ -496,4 +690,31 @@ func ToCamelCase(upper bool, names ...string) (out string) {
 		}
 	}
 	return
+}
+
+func ToAbbreviate(name string) string {
+	return abbreviate(name)
+}
+
+func abbreviate(s string) string {
+	abbr := make([]byte, 0, len(s))
+	lex := make([]byte, 0, len(s))
+
+	f := true
+	for _, ch := range s {
+		if ch == '.' {
+			f = true
+			continue
+		}
+		if f {
+			abbr = append(abbr, byte(unicode.ToUpper(ch)))
+			lex = make([]byte, 0, len(s))
+			f = false
+		} else {
+			lex = append(lex, byte(ch))
+		}
+	}
+	abbr = append(abbr, lex...)
+
+	return string(abbr)
 }

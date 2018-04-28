@@ -32,7 +32,7 @@ type (
     }
 
 	{{ range $r := $.SortedReferences }}
-		{{$r.Reference.RenderDefinition}}
+		{{$r.Reference.RenderDefinition $.IsAbbreviate}}
 	{{ end }}
 )
 
@@ -76,7 +76,7 @@ func (c *{{ $cName }}) sendRequest(res interface{}, request *http.Request) (*htt
 
 `
 
-func renderClient(s *Swagger, pn, dest string) {
+func renderClient(s *Swagger, pn, dest string, isAbbreviate bool) {
 	tmpl, err := template.New("client").Funcs(getFuncMap()).Parse(ClientTemplate)
 	if err != nil {
 		os.Stderr.WriteString("Parse tmpl error: " + err.Error())
@@ -84,26 +84,27 @@ func renderClient(s *Swagger, pn, dest string) {
 	}
 
 	c := Context{
-		PackageName: pn,
-		Info:        s.Info,
-		References:  make(map[string]property),
-		Functions:   []Function{},
+		PackageName:  pn,
+		Info:         s.Info,
+		IsAbbreviate: isAbbreviate,
+		References:   make(map[string]property),
+		Functions:    []Function{},
 	}
 
 	for n, schema := range s.Components.Schemas {
-		c.setProperty(schema, n, "", "")
+		c.setProperty(schema, n, "", "", "")
 	}
 	for n, rb := range s.Components.RequestBodies {
 		for k, mt := range rb.Content {
 			if rb.Check(k) {
-				c.setProperty(mt.Schema, n, "", "")
+				c.setProperty(mt.Schema, n, "", "", "")
 			}
 		}
 	}
 	for n, response := range s.Components.Responses {
 		for k, mt := range response.Content {
 			if response.Check(k) {
-				c.setProperty(mt.Schema, n, "", "")
+				c.setProperty(mt.Schema, n, "", "", "")
 			}
 		}
 	}

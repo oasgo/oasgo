@@ -16,18 +16,20 @@ const (
 package {{.PackageName}}
 type (
 	{{ range $r := $.SortedReferences }}
-		{{$r.Reference.RenderDefinition}}
+		{{$r.Reference.RenderDefinition $.IsAbbreviate}}
 	{{ end }}
 )
 {{ range $r := $.SortedReferences }}
-func (r *{{$r.Reference.Name}}) Validate() (bool, error) {
-	return govalidator.ValidateStruct(r)
-}
+	func (r *
+	{{- if $.IsAbbreviate}} {{- $r.Reference.AbbrName -}} {{- else -}} {{- $r.Reference.Name -}} {{- end -}}
+	) Validate() (bool, error) {
+		{{ $r.Reference.RenderValidate "" }}
+	}
 {{ end }}
 `
 )
 
-func renderDTO(s *Swagger, pn, dest string) {
+func renderDTO(s *Swagger, pn, dest string, isAbbreviate bool) {
 	tmpl, err := template.New("dto").Parse(DTOTemplate)
 	if err != nil {
 		os.Stderr.WriteString("Parse tmpl error: " + err.Error())
@@ -35,25 +37,26 @@ func renderDTO(s *Swagger, pn, dest string) {
 	}
 
 	c := Context{
-		PackageName: pn,
-		References:  make(map[string]property),
-		Functions:   []Function{},
+		PackageName:  pn,
+		IsAbbreviate: isAbbreviate,
+		References:   make(map[string]property),
+		Functions:    []Function{},
 	}
 
 	for n, schema := range s.Components.Schemas {
-		c.setProperty(schema, n, "", "")
+		c.setProperty(schema, n, "", "", "")
 	}
 	for n, rb := range s.Components.RequestBodies {
 		for k, mt := range rb.Content {
 			if rb.Check(k) {
-				c.setProperty(mt.Schema, n, "", "")
+				c.setProperty(mt.Schema, n, "", "", "")
 			}
 		}
 	}
 	for n, response := range s.Components.Responses {
 		for k, mt := range response.Content {
 			if response.Check(k) {
-				c.setProperty(mt.Schema, n, "", "")
+				c.setProperty(mt.Schema, n, "", "", "")
 			}
 		}
 	}
