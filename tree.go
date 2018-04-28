@@ -503,13 +503,15 @@ func buildValidTag(p property) string {
 		}
 		validateTags += ")"
 	}
-	switch p.Reference.RenderFormat() {
-	case "date-time", "date":
-		if validateTags != "" {
-			validateTags += ","
-		}
-		validateTags += "rfc3339"
-	}
+
+	//TODO: Disabled, the govalidator does not support type time.Time. Subsequently, you need to add a custom tag.
+	//switch p.Reference.RenderFormat() {
+	//case "date-time", "date":
+	//	if validateTags != "" {
+	//		validateTags += ","
+	//	}
+	//	validateTags += "rfc3339"
+	//}
 
 	if validateTags == "" {
 		return validateTags
