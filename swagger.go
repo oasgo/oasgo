@@ -94,9 +94,10 @@ type Schema struct {
 	Properties           map[string]*Schema
 	Items                *Schema
 	Parent               *Schema
-	AdditionalProperties *Schema  `yaml:"additionalProperties"`
-	Enum                 []string `yaml:"enum"`
-	Default              string   `yaml:"default"`
+	AdditionalProperties *Schema             `yaml:"additionalProperties"`
+	Enum                 []string            `yaml:"enum"`
+	Default              string              `yaml:"default"`
+	ExtensionTags        map[string][]string `yaml:"x-oasgo-tags"`
 }
 
 // Header https://swagger.io/specification/#headerObject
