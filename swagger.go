@@ -353,15 +353,17 @@ func check(availableKeys []string, key string) bool {
 
 // readFile Read the file by URL, if the path is a reference, else from the local file
 func readFile(path string) ([]byte, error) {
-	if _, err := url.ParseRequestURI(path); err!= nil{
-		return ioutil.ReadFile(path)
+	url, err := url.ParseRequestURI(path)
+	if err == nil {
+		switch url.Scheme {
+		case "http", "https":
+			r, err := http.Get(path)
+			if err != nil {
+				return nil, err
+			}
+			defer r.Body.Close()
+			return ioutil.ReadAll(r.Body)
+		}
 	}
-
-	r, err := http.Get(path)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Body.Close()
-
-	return ioutil.ReadAll(r.Body)
+	return ioutil.ReadFile(path)
 }
