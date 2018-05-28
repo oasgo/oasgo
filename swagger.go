@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	yaml "gopkg.in/yaml.v2"
+	"net/url"
 )
 
 // Swagger https://swagger.io/specification/
@@ -325,8 +326,7 @@ func Inspect(node interface{}, visitor func(i interface{}) bool) {
 }
 
 func parse(path string) *Swagger {
-	data, err := ioutil.ReadFile(path)
-
+	data, err := readFile(path)
 	if err != nil {
 		flag.PrintDefaults()
 		fmt.Println(err)
@@ -349,4 +349,19 @@ func check(availableKeys []string, key string) bool {
 		}
 	}
 	return false
+}
+
+// readFile Read the file by URL, if the path is a reference, else from the local file
+func readFile(path string) ([]byte, error) {
+	if _, err := url.ParseRequestURI(path); err!= nil{
+		return ioutil.ReadFile(path)
+	}
+
+	r, err := http.Get(path)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Body.Close()
+
+	return ioutil.ReadAll(r.Body)
 }
