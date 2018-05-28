@@ -229,11 +229,12 @@ type Datetime struct {
 }
 
 type property struct {
-	Name       string
-	SourceName string
-	Reference  Reference
-	Required   bool
-	Enum       []string
+	Name          string
+	SourceName    string
+	Reference     Reference
+	Required      bool
+	Enum          []string
+	ExtensionTags map[string][]string
 }
 
 type functions []Function
@@ -468,59 +469,8 @@ func (s *Struct) RenderValidate(name string) string {
 }
 func (s *Struct) RenderFormat() string { return "" }
 
-func buildJsonTag(p property) string {
-	jsonTag := ""
-
-	if p.SourceName != "" {
-		jsonTag += p.SourceName
-	}
-	if !p.Required {
-		jsonTag += ",omitempty"
-	}
-
-	if jsonTag == "" {
-		return jsonTag
-	}
-	return fmt.Sprintf("json:\"%s\"", jsonTag)
-}
-
-func buildValidTag(p property) string {
-	validateTags := ""
-
-	if p.Required {
-		validateTags += "required"
-	}
-	if len(p.Enum) > 0 {
-		if validateTags != "" {
-			validateTags += ","
-		}
-		validateTags += "in("
-		for i, el := range p.Enum {
-			validateTags += el
-			if i < len(p.Enum)-1 {
-				validateTags += "|"
-			}
-		}
-		validateTags += ")"
-	}
-
-	//TODO: Disabled, the govalidator does not support type time.Time. Subsequently, you need to add a custom tag.
-	//switch p.Reference.RenderFormat() {
-	//case "date-time", "date":
-	//	if validateTags != "" {
-	//		validateTags += ","
-	//	}
-	//	validateTags += "rfc3339"
-	//}
-
-	if validateTags == "" {
-		return validateTags
-	}
-	return fmt.Sprintf("valid:\"%s\"", validateTags)
-}
-
 func (s *Struct) RenderTags(p property) string {
-	tags := []string{buildJsonTag(p), buildValidTag(p)}
+	tags := []string{buildJsonTag(p), buildValidTag(p), buildExtensionTags(p)}
 	return fmt.Sprintf("`%s`", strings.Trim(strings.Join(tags, " "), " "))
 }
 
@@ -545,9 +495,10 @@ func (ctx *Context) setProperty(schema *Schema, name, pname, rname, descPname st
 	}
 
 	p := property{
-		Name:       ToCamelCase(true, name),
-		SourceName: name,
-		Enum:       schema.Enum,
+		Name:          ToCamelCase(true, name),
+		SourceName:    name,
+		Enum:          schema.Enum,
+		ExtensionTags: schema.ExtensionTags,
 	}
 
 	switch schema.Type {
@@ -694,6 +645,84 @@ func ToCamelCase(upper bool, names ...string) (out string) {
 
 func ToAbbreviate(name string) string {
 	return abbreviate(name)
+}
+
+func buildJsonTag(p property) string {
+	jsonTag := ""
+
+	if p.SourceName != "" {
+		jsonTag += p.SourceName
+	}
+	if !p.Required {
+		jsonTag += ",omitempty"
+	}
+
+	if jsonTag == "" {
+		return jsonTag
+	}
+	return fmt.Sprintf("json:\"%s\"", jsonTag)
+}
+
+func buildValidTag(p property) string {
+	validateTags := ""
+
+	if p.Required {
+		add(&validateTags, "required", ",")
+	}
+	add(&validateTags, enumToTag(p.Enum), ",")
+	//TODO: Disabled, the govalidator does not support type time.Time. Subsequently, you need to add a custom tag.
+	//switch p.Reference.RenderFormat() {
+	//case "date-time", "date":
+	//	if validateTags != "" {
+	//		validateTags += ","
+	//	}
+	//	validateTags += "rfc3339"
+	//}
+
+	if validateTags == "" {
+		return validateTags
+	}
+	return fmt.Sprintf("valid:\"%s\"", validateTags)
+}
+
+func buildExtensionTags(p property) (tags string) {
+	if len(p.ExtensionTags) <= 0 {
+		return
+	}
+	for name, values := range p.ExtensionTags {
+		if len(values) <= 0 {
+			continue
+		}
+		add(&tags, fmt.Sprintf("%s:\"%s\"", name, strings.Join(values, ",")), " ")
+	}
+	return
+}
+
+func add(tags *string, that string, sep string) {
+	if tags == nil || that == "" {
+		return
+	}
+	if *tags != "" {
+		*tags += sep
+	}
+	*tags += that
+}
+
+func enumToTag(values []string) string {
+	if len(values) <= 0 {
+		return ""
+	}
+
+	tag := "in("
+	for i, el := range values {
+		tag += el
+		if i < len(values)-1 {
+			tag += "|"
+		}
+	}
+	tag += ")"
+
+	return tag
 }
 
 func abbreviate(s string) string {
