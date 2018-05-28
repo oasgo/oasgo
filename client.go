@@ -60,6 +60,9 @@ func (c *{{ $cName }}) sendRequest(res interface{}, request *http.Request) (*htt
 	}
 	defer resp.Body.Close()
 
+	if res == nil {
+		return resp, nil
+	}
 	if r, ok := res.(*string); ok {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
