@@ -54,26 +54,27 @@ func (c *{{ $cName }}) {{$f.RenderSignature}} {
 {{ end }}
 
 func (c *{{ $cName }}) sendRequest(res interface{}, request *http.Request) (*http.Response, error){
-	resp, err := c.HTTP.Do(request)
+	
+resp, err := c.HTTP.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
 	if res == nil {
 		return resp, nil
 	}
+
+	var body []byte
 	if r, ok := res.(*string); ok {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return resp, err
+		if body, err = ioutil.ReadAll(resp.Body); err == nil {
+			*r = string(body)
 		}
-
-		*r = string(body)
-		return resp, nil
+	} else {
+		body = bytes.NewBuffer(make([]byte, 0))
+		err = json.NewDecoder(io.TeeReader(resp.Body, body)).Decode(res)
 	}
-
-	err = json.NewDecoder(resp.Body).Decode(res)
+	resp.Body.Close()
+	resp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	
 	return resp, err
 }
 
