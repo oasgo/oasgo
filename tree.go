@@ -73,6 +73,10 @@ const (
 		return nil, err
 	}
 
+	{{ range $h := $.GetHeaders}}
+		{{- $h.RenderHeader}}
+	{{- end }}
+
 	return c.sendRequest(res, request)`
 
 	paramTemplate = `
@@ -99,6 +103,15 @@ const (
 		if {{- $.Property.Name}} != "" {
 	{{- end -}}
 		q.Set("{{- $.Property.SourceName}}", {{- $.Property.Name}})
+	{{- if not $.Required }}
+		}
+	{{- end  }}
+`
+	setHeaderTemplate = `
+	{{- if not $.Required }}
+		if {{- $.Property.Name}} != "" {
+	{{- end -}}
+		request.Header.Set("{{- $.Property.SourceName}}", {{- $.Property.Name}})
 	{{- if not $.Required }}
 		}
 	{{- end  }}
@@ -333,6 +346,10 @@ func (f *Function) GetQueryParams() (params []Param) {
 	return f.getParamsByIn("query")
 }
 
+func (f *Function) GetHeaders() (params []Param) {
+	return f.getParamsByIn("header")
+}
+
 func (f *Function) getParamsByIn(in string) (params []Param) {
 	params = make([]Param, 0)
 	for _, el := range f.Input {
@@ -349,6 +366,10 @@ func (p *Param) RenderPathParam() string {
 
 func (p *Param) RenderQueryParam() string {
 	return renderTemplate("qParam", setQueryParamTemplate, p)
+}
+
+func (p *Param) RenderHeader() string {
+	return renderTemplate("headerParam", setHeaderTemplate, p)
 }
 
 func (s *String) RenderLiteral() string                     { return "string" }
