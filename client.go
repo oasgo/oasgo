@@ -63,17 +63,18 @@ resp, err := c.HTTP.Do(request)
 		return resp, nil
 	}
 
-	var body []byte
+	body := bytes.NewBuffer(make([]byte, 0))
 	if r, ok := res.(*string); ok {
-		if body, err = ioutil.ReadAll(resp.Body); err == nil {
-			*r = string(body)
+		var bs []byte
+		if bs, err = ioutil.ReadAll(resp.Body); err == nil {
+			*r = string(bs)
 		}
+		body = bytes.NewBuffer(bs)
 	} else {
-		body = bytes.NewBuffer(make([]byte, 0))
 		err = json.NewDecoder(io.TeeReader(resp.Body, body)).Decode(res)
 	}
 	resp.Body.Close()
-	resp.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	resp.Body = ioutil.NopCloser(body)
 	
 	return resp, err
 }

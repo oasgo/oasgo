@@ -87,22 +87,22 @@ const (
 			return
 		}
 	{{- end }}
-	{{(($.Property.Reference.RenderExtraction $.Property.Name $.Property.SourceName))}}
+	{{(($.Property.Reference.RenderExtraction $.Property.Name "value" $.Property.SourceName))}}
 `
 	setPathParamTemplate = `
 	{{- if not $.Required }}
-		if {{- $.Property.Name}} != "" {
+		{{(($.Property.Reference.RenderCheckEmpty $.Property.Name))}}{
 	{{- end -}}
-	"{{"{"}}{{- $.Property.SourceName}}{{"}"}}", {{$.Property.Name}},
+	"{{"{"}}{{- $.Property.SourceName}}{{"}"}}", {{(($.Property.Reference.RenderToString $.Property.Name))}},
 	{{- if not $.Required }}
 		}
 	{{- end  }}
 `
 	setQueryParamTemplate = `
 	{{- if not $.Required }}
-		if {{- $.Property.Name}} != "" {
+		{{(($.Property.Reference.RenderCheckEmpty $.Property.Name))}}{ 
 	{{- end -}}
-		q.Set("{{- $.Property.SourceName}}", {{- $.Property.Name}})
+		q.Set("{{- $.Property.SourceName}}", {{(($.Property.Reference.RenderToString $.Property.Name))}})
 	{{- if not $.Required }}
 		}
 	{{- end  }}
@@ -117,7 +117,7 @@ const (
 	{{- end  }}
 `
 	extractIntTemplate = `
-	{{$.Name}}, err = strconv.ParseInt(value, 10, 64)
+	{{$.Name}}, err = strconv.ParseInt({{$.NameIn}}, 10, 64)
 	if err != nil {
 		err = &InvalidParameterTypeError{
 			field:"{{$.Field}}",
@@ -127,7 +127,7 @@ const (
 	}
 `
 	extractFloatTemplate = `
-	{{$.Name}}, err = strconv.ParseFloat(value, 64)
+	{{$.Name}}, err = strconv.ParseFloat({{$.NameIn}}, 64)
 	if err != nil {
 		err = &InvalidParameterTypeError{
 			field:"{{$.Field}}",
@@ -137,7 +137,7 @@ const (
 	}
 `
 	extractBoolTemplate = `
-	{{$.Name}}, err = strconv.ParseBool(value)
+	{{$.Name}}, err = strconv.ParseBool({{$.NameIn}})
 	if err != nil {
 		err = &InvalidParameterTypeError{
 			field:"{{$.Field}}",
@@ -147,7 +147,7 @@ const (
 	}
 `
 	extractDatetimeTemplate = `
-	{{$.Name}}, err = time.Parse({{$.Format}}, value)
+	{{$.Name}}, err = time.Parse({{$.Format}}, {{$.NameIn}})
 	if err != nil {
 		err = &InvalidParameterTypeError{
 			field:"{{$.Field}}",
@@ -185,8 +185,10 @@ type Reference interface {
 	RenderDefinition(isAbbreviate bool) string
 	RenderLiteral() string
 	RenderName(isAbbreviate bool) string
-	RenderExtraction(varName, oName string) string
+	RenderExtraction(to, that, field string) string
 	RenderFormat() string
+	RenderCheckEmpty(name string) string
+	RenderToString(name string) string
 }
 
 type Context struct {
@@ -375,65 +377,99 @@ func (p *Param) RenderHeader() string {
 func (s *String) RenderLiteral() string                     { return "string" }
 func (s *String) RenderName(isAbbreviate bool) string       { return "string" }
 func (s *String) RenderDefinition(isAbbreviate bool) string { return "" }
-func (s *String) RenderExtraction(vn, on string) string {
-	return fmt.Sprintf("%s = value", vn)
+func (s *String) RenderExtraction(to, that, field string) string {
+	return fmt.Sprintf("%s = %s", to, that)
 }
-func (s *String) RenderFormat() string   { return s.Format }
+func (s *String) RenderFormat() string   { return "" }
 func (s *String) RenderValues() []string { return s.Values }
 func (s *String) RenderDefault() string  { return s.Default }
+func (s *String) RenderCheckEmpty(name string) string {
+	return fmt.Sprintf("if %s == \"\"", name)
+	}
+func (s *String) RenderToString(name string) string {
+	return name
+}
 
 func (dt *Datetime) RenderLiteral() string                     { return "time.Time" }
 func (dt *Datetime) RenderName(isAbbreviate bool) string       { return "time.Time" }
 func (dt *Datetime) RenderDefinition(isAbbreviate bool) string { return "" }
-func (dt *Datetime) RenderExtraction(vn, on string) string {
+func (dt *Datetime) RenderExtraction(to, that, field string) string {
 	return renderTemplate(
 		"datetime", extractDatetimeTemplate,
 		struct {
-			Name   string
+			Name  string
+			NameIn string
 			Field  string
 			Format string
-		}{vn, on, dt.Format})
+		}{to, that, field, dt.Format})
 }
 func (dt *Datetime) RenderFormat() string { return dt.Format }
+func (dt *Datetime) RenderCheckEmpty(name string) string {
+	return fmt.Sprintf("if %s.IsZero()", name)
+}
+func (dt *Datetime) RenderToString(name string) string {
+	return fmt.Sprintf("%s.Format(time.RFC3339)", name)
+}
 
 func (i *Integer) RenderLiteral() string                     { return "int64" }
 func (i *Integer) RenderName(isAbbreviate bool) string       { return "int64" }
 func (i *Integer) RenderDefinition(isAbbreviate bool) string { return "" }
-func (i *Integer) RenderExtraction(vn, on string) string {
+func (i *Integer) RenderExtraction(to, that, field string) string {
 	return renderTemplate(
 		"int", extractIntTemplate,
 		struct {
 			Name  string
+			NameIn string
 			Field string
-		}{vn, on})
+		}{to, that, field})
 }
 func (i *Integer) RenderFormat() string { return "" }
+func (i *Integer) RenderCheckEmpty(name string) string {
+	return fmt.Sprintf("if %s > 0 ", name)
+}
+func (i *Integer) RenderToString(name string) string {
+	return fmt.Sprintf("strconv.FormatInt(%s, 10)", name)
+}
 
 func (n *Number) RenderLiteral() string                     { return "float64" }
 func (n *Number) RenderName(isAbbreviate bool) string       { return "float64" }
 func (n *Number) RenderDefinition(isAbbreviate bool) string { return "" }
-func (n *Number) RenderExtraction(vn, on string) string {
+func (n *Number) RenderExtraction(to, that, field string) string {
 	return renderTemplate(
 		"float", extractFloatTemplate,
 		struct {
 			Name  string
+			NameIn string
 			Field string
-		}{vn, on})
+		}{to, that, field})
 }
 func (n *Number) RenderFormat() string { return "" }
+func (n *Number) RenderCheckEmpty(name string) string {
+	return fmt.Sprintf("if %s > 0.0 ", name)
+}
+func (n *Number) RenderToString(name string) string {
+	return fmt.Sprintf("strconv.FormatFloat(%s, 'f', -1, 64)", name)
+}
 
 func (b *Bool) RenderLiteral() string                     { return "bool" }
 func (b *Bool) RenderName(isAbbreviate bool) string       { return "bool" }
 func (b *Bool) RenderDefinition(isAbbreviate bool) string { return "" }
-func (b *Bool) RenderExtraction(vn, on string) string {
+func (b *Bool) RenderExtraction(to, that, field string) string {
 	return renderTemplate(
 		"bool", extractBoolTemplate,
 		struct {
-			Name  string
+			Name string
+			NameIn  string
 			Field string
-		}{vn, on})
+		}{to, that, field})
 }
 func (b *Bool) RenderFormat() string { return "" }
+func (b *Bool) RenderCheckEmpty(name string) string {
+	return "if true "
+}
+func (b *Bool) RenderToString(name string) string {
+	return fmt.Sprintf("strconv.FormatBool(%s)", name)
+}
 
 func (s *Slice) RenderLiteral() string { return s.Name }
 func (s *Slice) RenderName(isAbbreviate bool) string {
@@ -442,10 +478,16 @@ func (s *Slice) RenderName(isAbbreviate bool) string {
 func (s *Slice) RenderDefinition(isAbbreviate bool) string {
 	return renderTemplate("slice", arrayTemplate, s)
 }
-func (s *Slice) RenderExtraction(vn, on string) string {
+func (s *Slice) RenderExtraction(to, that, field string) string {
 	return renderTemplate("sliceExtract", extractSliceTemplate, s)
 }
 func (s *Slice) RenderFormat() string { return "" }
+func (s *Slice) RenderCheckEmpty(name string) string {
+	return ""
+}
+func (s *Slice) RenderToString(name string) string {
+	return ""
+}
 
 func (s *Dictionary) RenderLiteral() string { return s.Name }
 func (s *Dictionary) RenderName(isAbbreviate bool) string {
@@ -454,10 +496,16 @@ func (s *Dictionary) RenderName(isAbbreviate bool) string {
 func (s *Dictionary) RenderDefinition(isAbbreviate bool) string {
 	return renderTemplate("dict", dictTemplate, s)
 }
-func (s *Dictionary) RenderExtraction(vn, on string) string {
+func (s *Dictionary) RenderExtraction(to, that, field string) string {
 	return renderTemplate("dictExtract", extractDictTemplate, s)
 }
 func (s *Dictionary) RenderFormat() string { return "" }
+func (s *Dictionary) RenderCheckEmpty(name string) string {
+	return ""
+}
+func (s *Dictionary) RenderToString(name string) string {
+	return ""
+}
 
 func (s *Struct) RenderLiteral() string { return s.Name }
 func (s *Struct) RenderName(isAbbreviate bool) string {
@@ -475,7 +523,7 @@ func (s *Struct) RenderDefinition(isAbbreviate bool) string {
 			P            *Struct
 		}{isAbbreviate, s})
 }
-func (s *Struct) RenderExtraction(vn, on string) string {
+func (s *Struct) RenderExtraction(to, that, field string) string {
 	return renderTemplate("structExtract", extractStructTemplate, s)
 }
 
@@ -493,6 +541,12 @@ func (s *Struct) RenderFormat() string { return "" }
 func (s *Struct) RenderTags(p property) string {
 	tags := []string{buildJsonTag(p), buildValidTag(p), buildExtensionTags(p)}
 	return fmt.Sprintf("`%s`", strings.Trim(strings.Join(tags, " "), " "))
+}
+func (s *Struct) RenderCheckEmpty(name string) string {
+	return ""
+}
+func (s *Struct) RenderToString(name string) string {
+	return ""
 }
 
 func (p *Param) RenderExtraction() string {
